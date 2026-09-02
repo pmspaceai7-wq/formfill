@@ -31,6 +31,7 @@ export function SourcePanel({ onSourceReady }: Props) {
   const [pastedText, setPastedText] = useState("");
   const [loading, setLoading] = useState(false);
   const [sourceId, setSourceId] = useState<string | null>(null);
+  const [learned, setLearned] = useState<{ added: number; total: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [activeTab, setActiveTab] = useState<"files" | "paste">("files");
 
@@ -71,6 +72,10 @@ export function SourcePanel({ onSourceReady }: Props) {
       const summary = await uploadSources(stagedFiles.current, pastedText);
       setSourceId(summary.source_id);
       setWarnings(summary.warnings);
+      setLearned({
+        added: summary.facts_learned ?? 0,
+        total: summary.facts_total ?? 0,
+      });
       // Update rows with char counts
       setRows((prev) =>
         prev.map((r) => ({
@@ -92,10 +97,11 @@ export function SourcePanel({ onSourceReady }: Props) {
     setWarnings([]);
     setPastedText("");
     setSourceId(null);
+    setLearned(null);
   };
 
   return (
-    <div className="w-80 h-full bg-white border-r border-slate-200 flex flex-col p-4 gap-4 text-xs select-none shadow-sm overflow-y-auto">
+    <div className="w-80 h-full max-h-[calc(100vh-104px)] bg-white border-r border-slate-200 flex flex-col p-4 gap-4 text-xs select-none shadow-sm overflow-y-auto">
       {/* Title Header */}
       <div className="flex items-center justify-between pb-3 border-b border-slate-100">
         <div className="flex items-center gap-2">
@@ -296,14 +302,22 @@ export function SourcePanel({ onSourceReady }: Props) {
           </button>
         ) : (
           <div className="space-y-2">
-            <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between shadow-2xs">
-              <div className="flex items-center gap-1.5">
-                <CheckCircleIcon size={14} className="text-emerald-600" />
-                <span>Source Data Ready</span>
+            <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold space-y-1 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <CheckCircleIcon size={14} className="text-emerald-600" />
+                  <span>Source Data Ready</span>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
+                  Active
+                </span>
               </div>
-              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
-                Active
-              </span>
+              {learned && (
+                <p className="text-[10px] font-medium text-emerald-700/90 leading-relaxed">
+                  Learned {learned.added} new detail{learned.added === 1 ? "" : "s"} ·{" "}
+                  {learned.total} remembered and reused on every form.
+                </p>
+              )}
             </div>
 
             <button

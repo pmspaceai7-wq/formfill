@@ -9,8 +9,10 @@ import { Toolbar } from "@/components/Toolbar";
 import { PdfPage } from "@/components/PdfPage";
 import { FieldOverlay } from "@/components/FieldOverlay";
 import { SourcePanel } from "@/components/SourcePanel";
+import { ProfileDrawer } from "@/components/ProfileDrawer";
 import { useFillJob } from "@/hooks/useFillJob";
 import { AlertCircleIcon, RefreshCwIcon } from "@/components/Icons";
+import { getProfile } from "@/lib/api";
 
 type State = "empty" | "uploading" | "loaded" | "error";
 
@@ -33,7 +35,21 @@ export default function Home() {
   const [sourceId, setSourceId] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
 
+  // Profile — details remembered across forms
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [factCount, setFactCount] = useState(0);
+
   const fillJob = useFillJob();
+
+  // Load the remembered-detail count on mount so the header badge is accurate
+  // even before the user touches anything.
+  useEffect(() => {
+    getProfile()
+      .then((p) => setFactCount(p.facts.length))
+      .catch(() => {
+        /* backend may be down; the badge simply stays hidden */
+      });
+  }, []);
 
   // Stable callbacks
   const handleRendered = useCallback((w: number, h: number) => {
@@ -171,9 +187,20 @@ export default function Home() {
   ).length;
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-100">
+    <div className="flex flex-col min-h-screen w-full bg-slate-100">
       {/* Top SaaS Header */}
-      <Navbar hasForm={state === "loaded"} onReset={resetAll} />
+      <Navbar
+        hasForm={state === "loaded"}
+        onReset={resetAll}
+        onOpenProfile={() => setProfileOpen(true)}
+        factCount={factCount}
+      />
+
+      <ProfileDrawer
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        onChanged={setFactCount}
+      />
 
       {/* Main Body */}
       {state === "empty" || state === "uploading" ? (
@@ -207,7 +234,7 @@ export default function Home() {
         </div>
       ) : (
         /* Form Studio Workspace */
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-col flex-1 min-h-0">
           <Toolbar
             filename={schema!.filename}
             page={page}
@@ -223,29 +250,32 @@ export default function Home() {
             onZoomIn={() => setZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)))}
             onZoomOut={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}
             onZoomFit={() => setZoom(1.0)}
-            canFill={Boolean(sourceId)}
+            /* A saved profile is enough on its own — that is the whole point of
+               remembering details. A source upload is only needed the first time. */
+            canFill={Boolean(sourceId) || factCount > 0}
+            hasProfileOnly={!sourceId && factCount > 0}
             fillStatus={fillJob.status}
             fillDone={fillJob.done}
             fillTotal={fillJob.total}
             fillError={fillJob.error}
-            onFill={() => fillJob.start(schema!.form_id, sourceId!)}
-            onFillRetry={() => fillJob.start(schema!.form_id, sourceId!)}
+            onFill={() => fillJob.start(schema!.form_id, sourceId ?? "")}
+            onFillRetry={() => fillJob.start(schema!.form_id, sourceId ?? "")}
             onNextEmpty={focusNextEmpty}
             onDownload={handleDownload}
             downloading={downloading}
             onResetForm={resetAll}
           />
 
-          <div className="flex flex-1 overflow-hidden">
-            {/* Left Source Documents Studio Panel */}
-            <div className="h-full flex-shrink-0 z-20">
+          <div className="flex flex-1 min-h-0 items-start">
+            {/* Left Source Documents Studio Panel — sticks while the page scrolls */}
+            <div className="flex-shrink-0 z-20 sticky top-[104px] self-start max-h-[calc(100vh-104px)]">
               <SourcePanel onSourceReady={(id) => setSourceId(id)} />
             </div>
 
             {/* Center Canvas PDF Viewer */}
             <div
               ref={overlayRef}
-              className="flex-1 overflow-auto flex justify-center items-start p-6 bg-slate-200/80"
+              className="flex-1 min-w-0 overflow-x-auto flex justify-center items-start p-6 bg-slate-200/80"
             >
               <div className="relative inline-block shadow-2xl rounded-lg bg-white overflow-hidden border border-slate-300">
                 <PdfPage

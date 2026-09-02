@@ -29,6 +29,8 @@ interface Props {
   onZoomFit: () => void;
   // Fill
   canFill: boolean;
+  /** True when filling will draw on the saved profile with no new upload. */
+  hasProfileOnly?: boolean;
   fillStatus: "idle" | "running" | "complete" | "error";
   fillDone: number;
   fillTotal: number;
@@ -54,6 +56,7 @@ export function Toolbar({
   onZoomOut,
   onZoomFit,
   canFill,
+  hasProfileOnly = false,
   fillStatus,
   fillDone,
   fillTotal,
@@ -69,11 +72,11 @@ export function Toolbar({
   const pct = fillTotal > 0 ? Math.round((fillDone / fillTotal) * 100) : 0;
 
   return (
-    <div className="flex flex-col bg-white border-b border-slate-200 shadow-sm z-30 sticky top-0">
+    <div className="flex flex-col bg-white border-b border-slate-200 shadow-sm z-30 sticky top-[61px]">
       {/* Primary Action Bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 flex-wrap gap-3">
+      <div className="flex items-center justify-between px-4 py-2.5 gap-3 flex-wrap xl:flex-nowrap">
         {/* Document Info Pill & Page Stepper */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-shrink-0">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs text-slate-800 font-semibold max-w-[220px] sm:max-w-xs truncate" title={filename}>
             <FileTextIcon size={14} className="text-blue-600 flex-shrink-0" />
             <span className="truncate">{filename}</span>
@@ -131,7 +134,7 @@ export function Toolbar({
         </div>
 
         {/* Center / Fill Status & Counter */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-shrink-0">
           <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-xs font-medium text-slate-600">
             <span className="font-bold text-slate-900">{filledCount}</span>
             <span>of {fieldCount} filled</span>
@@ -155,7 +158,7 @@ export function Toolbar({
         </div>
 
         {/* Action Buttons (Fill & Download) */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-shrink-0 ml-auto xl:ml-0">
           {/* Fill Button / State */}
           {fillStatus === "error" ? (
             <div className="flex items-center gap-2">
@@ -180,15 +183,21 @@ export function Toolbar({
             <button
               onClick={onFill}
               disabled={!canFill}
-              className={`px-4 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all shadow-sm ${
+              className={`px-4 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all shadow-sm whitespace-nowrap ${
                 canFill
                   ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-blue-500/20 hover:shadow-md hover:scale-[1.02] cursor-pointer"
                   : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
               }`}
-              title={canFill ? "Auto-fill all fields using attached source data" : "Attach a source document on the left first"}
+              title={
+                !canFill
+                  ? "Add a document or paste your details on the left first"
+                  : hasProfileOnly
+                  ? "Fill this form from the details already saved in your profile"
+                  : "Fill this form from your attached documents and saved profile"
+              }
             >
-              <SparklesIcon size={14} className={canFill ? "animate-pulse" : ""} />
-              <span>⚡ Fill with AI</span>
+              <SparklesIcon size={14} />
+              <span>{hasProfileOnly ? "Fill from Profile" : "Auto-Fill Form"}</span>
             </button>
           )}
 
@@ -229,7 +238,7 @@ export function Toolbar({
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1.5 font-medium">
             <span className="w-2.5 h-2.5 rounded-sm bg-blue-100 border border-blue-500 inline-block"></span>
-            <span className="text-slate-700 font-semibold">AI Matched</span>
+            <span className="text-slate-700 font-semibold">Auto-Filled</span>
           </span>
           <span className="flex items-center gap-1.5 font-medium">
             <span className="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-500 inline-block"></span>
@@ -243,14 +252,21 @@ export function Toolbar({
 
         <div className="flex items-center gap-2">
           {!canFill && (
-            <span className="text-amber-600 font-medium flex items-center gap-1">
-              <span>← Upload or paste source documents to enable auto-fill</span>
+            <span className="text-amber-600 font-medium">
+              ← Add a document or paste your details to enable auto-fill
             </span>
           )}
           {canFill && fillStatus === "complete" && (
             <span className="text-emerald-700 font-semibold flex items-center gap-1">
               <CheckCircleIcon size={12} className="text-emerald-600" />
-              <span>Form Auto-Filled Ready</span>
+              <span>
+                Filled {filledCount} of {fieldCount} — review before downloading
+              </span>
+            </span>
+          )}
+          {canFill && fillStatus === "idle" && hasProfileOnly && (
+            <span className="text-slate-500 font-medium">
+              Ready to fill from your saved profile
             </span>
           )}
         </div>

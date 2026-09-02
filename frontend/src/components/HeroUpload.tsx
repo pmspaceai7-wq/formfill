@@ -88,7 +88,7 @@ export function HeroUpload({ onFileSelected, isLoading, error, onClearError }: P
             {/* Subtitle */}
             <p className="text-base sm:text-lg text-slate-600 leading-relaxed max-w-xl">
               Upload any fillable PDF form. Provide your resume, letters, or notes.
-              InstaFill maps the fields and populates your document with 100% precision.
+              SpaceFill maps the fields and populates your document with 100% precision.
             </p>
 
             {/* Trust Badges */}
@@ -190,7 +190,7 @@ export function HeroUpload({ onFileSelected, isLoading, error, onClearError }: P
                   <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
                   <span className="ml-2 font-mono text-[11px] text-slate-700 font-bold">
-                    instafill_form.pdf (38 pages)
+                    i-129_form.pdf (38 pages)
                   </span>
                 </div>
                 <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10px] font-bold">

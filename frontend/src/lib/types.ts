@@ -52,4 +52,23 @@ export interface SourceSummary {
   source_id: string;
   items: SourceItem[];
   warnings: SourceWarning[];
+  /** Facts newly learned or updated from this upload. */
+  facts_learned?: number;
+  /** Total facts now held in the profile. */
+  facts_total?: number;
+}
+
+/** One remembered fact about the user, reused across every form. */
+export interface ProfileFact {
+  key: string;
+  value: string;
+  group: string;
+  source: string;
+  updated_at: string;
+  user_edited: boolean;
+}
+
+export interface ProfileResponse {
+  profile_id: string;
+  facts: ProfileFact[];
 }

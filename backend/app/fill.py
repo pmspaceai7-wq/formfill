@@ -4,15 +4,13 @@ fill.py — orchestrates batching, AI calls, and deterministic post-processing.
 from __future__ import annotations
 
 import asyncio
-import difflib
 import json
 import logging
-import re
-from pathlib import Path
 from typing import Optional
 
 from app.ai import complete_json
 from app.models import FormField, FormSchema
+from app.postprocess import MAX_VALUE_LEN, clean_batch
 from app.storage import form_dir, job_dir, read_json, source_dir, write_json
 
 logger = logging.getLogger(__name__)
@@ -21,7 +19,7 @@ logger = logging.getLogger(__name__)
 CHAR_BUDGET: int = 60_000     # max total chars sent to AI per batch
 BATCH_SIZE: int = 40          # max fields per AI call
 MAX_CONCURRENCY: int = 3      # simultaneous AI calls
-MAX_VALUE_LEN: int = 500      # drop any value longer than this (injection guard)
+# MAX_VALUE_LEN lives in postprocess.py — imported above, shared with local mode.
 
 # ── JSON schema the AI must follow ───────────────────────────────────────────
 _RESPONSE_SCHEMA: dict = {
@@ -108,72 +106,23 @@ def _build_user_prompt(source_text: str, fields: list[FormField]) -> str:
     )
 
 
-def _closest_option(value: str, options: list[str]) -> Optional[str]:
-    """Snap an AI-returned value to the nearest option, or None."""
-    v = value.strip().lower()
-    for opt in options:
-        if opt.strip().lower() == v:
-            return opt
-    matches = difflib.get_close_matches(v, [o.lower() for o in options], n=1, cutoff=0.6)
-    if matches:
-        idx = [o.lower() for o in options].index(matches[0])
-        return options[idx]
-    return None
-
-
 def _post_process(
     raw: dict,
     fields_by_id: dict[str, FormField],
 ) -> dict[str, str]:
-    """Deterministic validation — never asks the model to self-correct."""
-    result: dict[str, str] = {}
+    """
+    Deterministic validation — never asks the model to self-correct.
+    Shares postprocess.clean_value with the local path so both fill modes
+    agree about what a valid value for a given field looks like.
+    """
+    proposed: dict[str, str] = {}
     for item in raw.get("values", []):
         fid = item.get("field_id", "")
         val = item.get("value")
-
-        # Drop unknown field IDs
-        if fid not in fields_by_id:
+        if fid not in fields_by_id or val is None or not isinstance(val, str):
             continue
-        # Drop nulls
-        if val is None:
-            continue
-        # Drop non-strings
-        if not isinstance(val, str):
-            continue
-        # Injection guard: drop excessively long values
-        if len(val) > MAX_VALUE_LEN:
-            logger.warning("Dropping value for %s — too long (%d chars)", fid, len(val))
-            continue
-
-        field = fields_by_id[fid]
-
-        # Truncate to max_len
-        if field.max_len and len(val) > field.max_len:
-            val = val[: field.max_len]
-
-        # Snap dropdown to closest valid option
-        if field.type in ("dropdown", "listbox") and field.options:
-            snapped = _closest_option(val, field.options)
-            if snapped is None:
-                continue
-            val = snapped
-
-        # Map any truthy checkbox value to on_state
-        if field.type == "checkbox":
-            on = field.on_state or "Yes"
-            if val.strip().lower() in ("yes", "true", "1", "x", on.lower()):
-                val = on
-            else:
-                continue
-
-        # Strip newlines from single-line fields
-        if field.type == "text":
-            val = re.sub(r"[\r\n]+", " ", val).strip()
-
-        if val:
-            result[fid] = val
-
-    return result
+        proposed[fid] = val
+    return clean_batch(proposed, fields_by_id)
 
 
 async def _run_batch(

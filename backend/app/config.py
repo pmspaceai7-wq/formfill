@@ -10,7 +10,8 @@ class Settings(BaseSettings):
     DATA_DIR: str = "../data"
     FRONTEND_ORIGIN: str = "http://localhost:3000"
     MAX_UPLOAD_MB: int = 50
-    FILL_MODE: str = "local"   # "local" = regex/keyword, "ai" = API call
+    FILL_MODE: str = "local"   # "local" = extract+match, "ai" = API call
+    PROFILE_ID: str = "default"   # v0 has no auth — one profile per install
 
 
 settings = Settings()

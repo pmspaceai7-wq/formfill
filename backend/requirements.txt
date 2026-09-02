@@ -8,3 +8,15 @@ pypdf
 pdfplumber
 pypdfium2
 python-docx
+
+# Phase 8 — local intelligence (no AI API key required)
+sentence-transformers>=3.0    # semantic field<->fact matching, runs on CPU
+rapidfuzz>=3.0                # fast fuzzy matching for labels and options
+spacy>=3.7                    # NER over prose sources; needs en_core_web_sm
+python-dateutil>=2.9          # date normalisation
+phonenumbers>=8.13            # phone parsing (only for +CC numbers)
+nameparser>=1.1               # split full names into parts
+usaddress>=0.5.10             # split US addresses into components
+
+# Tests
+pytest

@@ -1,4 +1,4 @@
-import type { FormSchema, SourceSummary } from "./types";
+import type { FormSchema, ProfileResponse, SourceSummary } from "./types";
 
 function getBase(): string {
   if (typeof window !== "undefined") {
@@ -74,6 +74,34 @@ export async function getFill(jobId: string): Promise<FillStatus> {
   const res = await fetch(`${getBase()}/api/fill/${jobId}`);
   if (!res.ok) throw new Error("Job not found");
   return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Profile — the details remembered across every form
+// ---------------------------------------------------------------------------
+
+export async function getProfile(): Promise<ProfileResponse> {
+  const res = await fetch(`${getBase()}/api/profile`);
+  if (!res.ok) throw new Error("Could not load your profile");
+  return res.json();
+}
+
+export async function updateProfileFact(
+  key: string,
+  value: string
+): Promise<ProfileResponse> {
+  const res = await fetch(`${getBase()}/api/profile`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key, value }),
+  });
+  if (!res.ok) throw new Error("Could not save that change");
+  return res.json();
+}
+
+export async function clearProfile(): Promise<void> {
+  const res = await fetch(`${getBase()}/api/profile`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Could not clear your profile");
 }
 
 export async function exportPdf(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import shutil
 import asyncio
 from pathlib import Path
@@ -11,6 +12,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.config import settings
+from app.extract import extract_facts
 from app.fill import fill_form
 from app.fill_local import fill_form_local
 from app.labels import label_for
@@ -19,6 +21,7 @@ from app.pdf_read import NoAcroFormError, parse_form
 from app.pdf_render import render_pages
 from app.sources import ACCEPTED_EXTENSIONS, extract_text
 from app.storage import form_dir, source_dir, job_dir, new_id, write_json, read_json
+from app import profile as profile_store
 
 app = FastAPI(title="FormFill API")
 
@@ -171,6 +174,8 @@ class SourceSummary(BaseModel):
     source_id: str
     items: list[SourceItem]
     warnings: list[SourceWarning]
+    facts_learned: int = 0
+    facts_total: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -232,11 +237,86 @@ async def upload_sources(
     }
     write_json(sdir / "text.json", text_json)
 
+    # Learn facts now, not at fill time — this is what makes the *next* form
+    # fill even if the user uploads no new source material for it.
+    facts_learned = 0
+    facts_total = 0
+    combined = "\n\n".join(item.get("text", "") for item in items_data)
+    if combined.strip():
+        try:
+            names = [i["name"] for i in items_data] or [source_id]
+            stats = profile_store.merge_facts(
+                extract_facts(combined), source=", ".join(names)
+            )
+            facts_learned = stats["changed"]
+            facts_total = stats["total"]
+        except Exception:
+            # Fact extraction must never break source upload.
+            logging.getLogger(__name__).exception("Fact extraction failed")
+
     return SourceSummary(
         source_id=source_id,
         items=summary_items,
         warnings=warnings,
+        facts_learned=facts_learned,
+        facts_total=facts_total,
     )
+
+
+# ---------------------------------------------------------------------------
+# Profile endpoints — the persistent fact store
+# ---------------------------------------------------------------------------
+
+class ProfileFact(BaseModel):
+    key: str
+    value: str
+    group: str
+    source: str
+    updated_at: str
+    user_edited: bool
+
+
+class ProfileResponse(BaseModel):
+    profile_id: str
+    facts: list[ProfileFact]
+
+
+class FactUpdate(BaseModel):
+    key: str
+    value: str
+
+
+class OkResponse(BaseModel):
+    ok: bool
+    message: str = ""
+
+
+@app.get("/api/profile", response_model=ProfileResponse)
+async def get_profile() -> ProfileResponse:
+    return ProfileResponse(
+        profile_id=settings.PROFILE_ID,
+        facts=[ProfileFact(**item) for item in profile_store.as_items()],
+    )
+
+
+@app.patch("/api/profile", response_model=ProfileResponse)
+async def patch_profile(update: FactUpdate) -> ProfileResponse:
+    """Edit one fact by hand. User edits outrank document-derived values."""
+    value = update.value.strip()
+    if value:
+        profile_store.set_fact(update.key, value)
+    else:
+        profile_store.delete_fact(update.key)
+    return ProfileResponse(
+        profile_id=settings.PROFILE_ID,
+        facts=[ProfileFact(**item) for item in profile_store.as_items()],
+    )
+
+
+@app.delete("/api/profile", response_model=OkResponse)
+async def delete_profile() -> OkResponse:
+    profile_store.clear_profile()
+    return OkResponse(ok=True, message="Profile cleared.")
 
 
 # ---------------------------------------------------------------------------
@@ -298,13 +378,23 @@ def _run_fill(job_id: str, form_id: str, source_id: str) -> None:
 async def start_fill(
     background_tasks: BackgroundTasks,
     form_id: str = Form(...),
-    source_id: str = Form(...),
+    source_id: str = Form(default=""),
 ) -> FillStatus:
-    # Validate form and source exist
+    # Validate form exists
     if not (form_dir(form_id) / "schema.json").exists():
         raise HTTPException(status_code=400, detail="Form not found.")
-    if not (source_dir(source_id) / "text.json").exists():
+
+    # source_id is optional: a saved profile alone is enough to fill a form,
+    # which is the point of remembering details across forms. Only validate it
+    # when one was actually supplied.
+    if source_id and not (source_dir(source_id) / "text.json").exists():
         raise HTTPException(status_code=400, detail="Source not found.")
+
+    if not source_id and not profile_store.get_values():
+        raise HTTPException(
+            status_code=400,
+            detail="Nothing to fill from yet. Add a document or paste your details.",
+        )
 
     job_id = new_id("j")
     jdir = job_dir(job_id)
