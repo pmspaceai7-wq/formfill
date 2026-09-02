@@ -1,0 +1,27 @@
+Full Name: Aswathi S Kumar
+First Name: Aswathi
+Last Name: Kumar
+Middle Name: S
+
+Email: aswathisajik1@gmail.com
+Phone: 7306259524
+Mobile: 7306259524
+
+City: Kottayam
+State: Kerala
+Country: India
+Postal Code: 686001
+
+Date of Birth: 01/01/2000
+
+Job Title: Python Full Stack Developer
+Occupation: Software Developer
+Employer: Luminar Technolab
+Company: Luminar Technolab
+
+Nationality: Indian
+Citizenship: India
+Gender: Female
+
+Passport Number:
+SSN:

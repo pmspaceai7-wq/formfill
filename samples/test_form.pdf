@@ -1,0 +1,182 @@
+%PDF-1.3
+%‚„œ”
+1 0 obj
+<<
+/Producer (pypdf)
+>>
+endobj
+2 0 obj
+<<
+/Type /Pages
+/Count 1
+/Kids [ 4 0 R ]
+>>
+endobj
+3 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R
+/AcroForm <<
+/Fields [ ]
+/DR <<
+>>
+/DA (\057Helv 10 Tf 0 g)
+>>
+>>
+endobj
+4 0 obj
+<<
+/Type /Page
+/Resources <<
+>>
+/MediaBox [ 0.0 0.0 612 792 ]
+/Parent 2 0 R
+/Annots [ 5 0 R 6 0 R 7 0 R 8 0 R 9 0 R 10 0 R 11 0 R 12 0 R 13 0 R 14 0 R ]
+>>
+endobj
+5 0 obj
+<<
+/Type /Annot
+/Subtype /Widget
+/FT /Tx
+/T (GivenName)
+/TU (Given Name \050First Name\051)
+/Rect [ 72 680 300 700 ]
+/P 4 0 R
+/DA (\057Helv 10 Tf 0 g)
+>>
+endobj
+6 0 obj
+<<
+/Type /Annot
+/Subtype /Widget
+/FT /Tx
+/T (FamilyName)
+/TU (Family Name \050Last Name\051)
+/Rect [ 72 640 300 660 ]
+/P 4 0 R
+/DA (\057Helv 10 Tf 0 g)
+>>
+endobj
+7 0 obj
+<<
+/Type /Annot
+/Subtype /Widget
+/FT /Tx
+/T (Email)
+/TU (Email Address)
+/Rect [ 72 600 350 620 ]
+/P 4 0 R
+/DA (\057Helv 10 Tf 0 g)
+>>
+endobj
+8 0 obj
+<<
+/Type /Annot
+/Subtype /Widget
+/FT /Tx
+/T (Phone)
+/TU (Daytime Phone Number)
+/Rect [ 72 560 300 580 ]
+/P 4 0 R
+/DA (\057Helv 10 Tf 0 g)
+>>
+endobj
+9 0 obj
+<<
+/Type /Annot
+/Subtype /Widget
+/FT /Tx
+/T (City)
+/TU (City)
+/Rect [ 72 520 250 540 ]
+/P 4 0 R
+/DA (\057Helv 10 Tf 0 g)
+>>
+endobj
+10 0 obj
+<<
+/Type /Annot
+/Subtype /Widget
+/FT /Tx
+/T (State)
+/TU (State or Province)
+/Rect [ 72 480 200 500 ]
+/P 4 0 R
+/DA (\057Helv 10 Tf 0 g)
+>>
+endobj
+11 0 obj
+<<
+/Type /Annot
+/Subtype /Widget
+/FT /Tx
+/T (Country)
+/TU (Country)
+/Rect [ 72 440 250 460 ]
+/P 4 0 R
+/DA (\057Helv 10 Tf 0 g)
+>>
+endobj
+12 0 obj
+<<
+/Type /Annot
+/Subtype /Widget
+/FT /Tx
+/T (JobTitle)
+/TU (Job Title \057 Occupation)
+/Rect [ 72 400 350 420 ]
+/P 4 0 R
+/DA (\057Helv 10 Tf 0 g)
+>>
+endobj
+13 0 obj
+<<
+/Type /Annot
+/Subtype /Widget
+/FT /Tx
+/T (Employer)
+/TU (Employer \057 Company Name)
+/Rect [ 72 360 350 380 ]
+/P 4 0 R
+/DA (\057Helv 10 Tf 0 g)
+>>
+endobj
+14 0 obj
+<<
+/Type /Annot
+/Subtype /Widget
+/FT /Tx
+/T (DOB)
+/TU (Date of Birth \050MM\057DD\057YYYY\051)
+/Rect [ 72 320 280 340 ]
+/P 4 0 R
+/DA (\057Helv 10 Tf 0 g)
+>>
+endobj
+xref
+0 15
+0000000000 65535 f 
+0000000015 00000 n 
+0000000054 00000 n 
+0000000113 00000 n 
+0000000225 00000 n 
+0000000396 00000 n 
+0000000565 00000 n 
+0000000735 00000 n 
+0000000884 00000 n 
+0000001040 00000 n 
+0000001179 00000 n 
+0000001333 00000 n 
+0000001479 00000 n 
+0000001644 00000 n 
+0000001810 00000 n 
+trailer
+<<
+/Size 15
+/Root 3 0 R
+/Info 1 0 R
+>>
+startxref
+1983
+%%EOF
