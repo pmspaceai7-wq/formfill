@@ -11,7 +11,7 @@
 | 4 | AI fill (backend) | done |
 | 5 | Wire fill into UI | done |
 | 6 | Export filled PDF | done |
-| 7 | Make it hold together | not started |
+| 7 | Make it hold together | done |
 
 ## Deviations
 - Backend on port 8001
