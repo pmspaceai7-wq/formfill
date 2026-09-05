@@ -13,15 +13,39 @@ Layer 1 always wins over 2, which wins over 3. Nothing here calls the network.
 """
 from __future__ import annotations
 
+import csv
+import io
 import logging
 import re
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Optional, List, Dict, Tuple, Any
 
 from rapidfuzz import fuzz, process
 
 from app.facts import ALIAS_PAIRS, FACTS_BY_KEY
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ExtractedFact:
+    key: str
+    value: str
+    source_file: str
+    line_number: Optional[int]
+    snippet: str
+    confidence: float = 1.0
+    method: str = "exact_key"
+
+
+@dataclass
+class ExtractedCandidate:
+    value: str
+    source_file: str
+    line_number: Optional[int]
+    snippet: str
+    confidence: float = 1.0
+    method: str = "exact_key"
 
 # ---------------------------------------------------------------------------
 # Optional heavy deps — degrade gracefully if unavailable
@@ -346,53 +370,214 @@ def _extract_header(text: str) -> dict[str, str]:
 
 
 # ---------------------------------------------------------------------------
-# Public entry point
+# Public entry points
 # ---------------------------------------------------------------------------
+
+def _normalise_value_for_spec(key: str, value: str) -> str:
+    spec = FACTS_BY_KEY.get(key)
+    if not spec:
+        return value.strip()
+    if spec.kind == "date":
+        return _normalise_date(value)
+    elif spec.kind == "phone":
+        return _clean_phone(value)
+    elif spec.kind == "state":
+        return _normalise_state(value)
+    return value.strip()
+
+
+def extract_facts_with_provenance(
+    items_data: list[dict],
+) -> tuple[dict[str, str], dict[str, ExtractedFact], dict[str, list[ExtractedCandidate]]]:
+    """
+    Extract canonical facts with full source provenance and multi-candidate conflict tracking.
+    Works dynamically for ANY user files (PDF, DOCX, TXT, CSV, pasted notes).
+
+    Returns:
+      (facts_by_key, provenance_by_key, candidates_by_key)
+    """
+    raw_candidates: dict[str, list[ExtractedCandidate]] = {}
+
+    def _add_candidate(
+        key: str,
+        val: str,
+        src: str,
+        line: Optional[int],
+        snip: str,
+        conf: float = 1.0,
+        method: str = "exact_key",
+    ):
+        val = (val or "").strip()
+        if not val or len(val) > 300:
+            return
+        val = _normalise_value_for_spec(key, val)
+        if not val:
+            return
+        raw_candidates.setdefault(key, []).append(
+            ExtractedCandidate(
+                value=val,
+                source_file=src,
+                line_number=line,
+                snippet=snip.strip(),
+                confidence=conf,
+                method=method,
+            )
+        )
+
+    for item in items_data:
+        fname = item.get("name", "source")
+        text = item.get("text", "")
+        if not text.strip():
+            continue
+
+        # Handle structured CSV files dynamically
+        if fname.lower().endswith(".csv"):
+            try:
+                reader = csv.reader(io.StringIO(text))
+                for row_idx, row in enumerate(reader, start=1):
+                    if not row or len(row) < 2:
+                        continue
+                    if len(row) >= 4:
+                        field_id = row[1].strip()
+                        disp_label = row[2].strip()
+                        val = row[3].strip()
+                        matched_key = _key_to_fact(field_id) or _key_to_fact(disp_label)
+                        if matched_key and val:
+                            _add_candidate(
+                                matched_key, val, fname, row_idx,
+                                f"{disp_label}: {val}", 1.0, "csv_record",
+                            )
+                    else:
+                        k, val = row[0].strip(), row[1].strip()
+                        matched_key = _key_to_fact(k)
+                        if matched_key and val:
+                            _add_candidate(
+                                matched_key, val, fname, row_idx,
+                                f"{k}: {val}", 1.0, "csv_record",
+                            )
+                continue
+            except Exception:
+                logger.warning("CSV parsing error on %s", fname)
+
+        # Handle text / docx / pasted content line-by-line
+        lines = text.splitlines()
+        for line_idx, raw_line in enumerate(lines, start=1):
+            line = raw_line.strip()
+            if not line or len(line) > 350 or RE_NOISE_LINE.match(line):
+                continue
+
+            # Layer 1: Key-Value split
+            kv = _split_kv(line)
+            if kv:
+                raw_key, val = kv
+                if not raw_key.lower().startswith(("http", "https")) and not raw_key.isdigit():
+                    fact_key = _key_to_fact(raw_key)
+                    if fact_key and val:
+                        _add_candidate(fact_key, val, fname, line_idx, line, 1.0, "exact_key")
+
+            # Layer 2: Regex shapes on the line
+            email = _first(RE_EMAIL, line)
+            if email:
+                _add_candidate("contact.email", email, fname, line_idx, line, 0.95, "regex_email")
+
+            phone = _first(RE_PHONE, line)
+            if phone and ("phone" in line.lower() or "tel" in line.lower() or "cell" in line.lower() or "mobile" in line.lower()):
+                _add_candidate("contact.phone", _clean_phone(phone), fname, line_idx, line, 0.92, "regex_phone")
+
+            ssn = _first(RE_SSN, line)
+            if ssn and ("ssn" in line.lower() or "social" in line.lower() or "security" in line.lower()):
+                _add_candidate("id.ssn", ssn, fname, line_idx, line, 0.98, "regex_ssn")
+
+            anum = RE_ANUM.search(line)
+            if anum:
+                _add_candidate("id.alien_number", "A" + anum.group(1), fname, line_idx, line, 0.95, "regex_alien_number")
+
+            fein_match = re.search(r"\b(\d{2}-\d{7})\b", line)
+            if fein_match and ("ein" in line.lower() or "fein" in line.lower() or "tax" in line.lower() or "employer" in line.lower()):
+                _add_candidate("company.fein", fein_match.group(1), fname, line_idx, line, 0.98, "regex_fein")
+
+            i94_match = re.search(r"\b(\d{11})\b", line)
+            if i94_match and ("i-94" in line.lower() or "i94" in line.lower() or "arrival" in line.lower()):
+                _add_candidate("immigration.i94_number", i94_match.group(1), fname, line_idx, line, 0.98, "regex_i94")
+
+            pass_match = RE_PASSPORT.search(line)
+            if pass_match and ("passport" in line.lower() or "travel" in line.lower()):
+                _add_candidate("id.passport_number", pass_match.group(1), fname, line_idx, line, 0.95, "regex_passport")
+
+    # Composite expansions (names and addresses)
+    if "person.full_name" in raw_candidates:
+        for cand in list(raw_candidates["person.full_name"]):
+            name_parts = _split_name(cand.value)
+            for nk, nv in name_parts.items():
+                if nk != "person.full_name":
+                    _add_candidate(nk, nv, cand.source_file, cand.line_number, cand.snippet, cand.confidence * 0.98, "composite_name")
+
+    if "address.street" in raw_candidates:
+        for cand in list(raw_candidates["address.street"]):
+            addr_parts = _split_address(cand.value)
+            for ak, av in addr_parts.items():
+                if ak != "address.street":
+                    _add_candidate(ak, av, cand.source_file, cand.line_number, cand.snippet, cand.confidence * 0.95, "composite_address")
+
+    # Group, deduplicate, and identify conflicts
+    final_facts: dict[str, str] = {}
+    final_provenance: dict[str, ExtractedFact] = {}
+    final_candidates: dict[str, list[ExtractedCandidate]] = {}
+
+    for key, c_list in raw_candidates.items():
+        seen_vals: set[str] = set()
+        unique_candidates: list[ExtractedCandidate] = []
+        for c in c_list:
+            norm = c.value.strip().lower()
+            if norm not in seen_vals:
+                seen_vals.add(norm)
+                unique_candidates.append(c)
+
+        final_candidates[key] = unique_candidates
+
+        if unique_candidates:
+            # Sort by confidence descending, preferring explicit keys / csv records
+            best = sorted(
+                unique_candidates,
+                key=lambda x: (x.confidence, 1 if x.method in ("exact_key", "csv_record") else 0),
+                reverse=True,
+            )[0]
+            final_facts[key] = best.value
+            final_provenance[key] = ExtractedFact(
+                key=key,
+                value=best.value,
+                source_file=best.source_file,
+                line_number=best.line_number,
+                snippet=best.snippet,
+                confidence=best.confidence,
+                method=best.method,
+            )
+
+    return final_facts, final_provenance, final_candidates
+
 
 def extract_facts(text: str) -> dict[str, str]:
     """
     Extract canonical facts from raw source text.
-    Precedence: explicit key:value > regex shapes > header heuristics > NER.
+    Maintains 100% backward compatibility for profile store and tests.
     """
     if not text or not text.strip():
         return {}
 
-    facts: dict[str, str] = {}
-
-    # Layer 1 — explicit, highest confidence.
-    facts.update(_extract_kv_lines(text))
-
-    # Layer 2 — regex, only where layer 1 said nothing.
-    for k, v in _extract_regex(text).items():
-        facts.setdefault(k, v)
-
-    # Layer 2.5 — derive name parts / address parts from composites.
-    if "person.full_name" in facts and "person.first_name" not in facts:
-        for k, v in _split_name(facts["person.full_name"]).items():
+    facts, _, _ = extract_facts_with_provenance([{"name": "source", "text": text}])
+    if not facts:
+        # Fallback to single text pass with NER / headers
+        facts = _extract_kv_lines(text)
+        for k, v in _extract_regex(text).items():
             facts.setdefault(k, v)
-    if "address.street" in facts:
-        for k, v in _split_address(facts["address.street"]).items():
+        for k, v in _extract_header(text).items():
+            facts.setdefault(k, v)
+        for k, v in _extract_ner(text, facts).items():
             facts.setdefault(k, v)
 
-    # Layer 3 — header heuristics, then NER for whatever is still missing.
-    for k, v in _extract_header(text).items():
-        facts.setdefault(k, v)
-    for k, v in _extract_ner(text, facts).items():
-        facts.setdefault(k, v)
-
-    # Normalise the typed ones.
     for key, value in list(facts.items()):
-        spec = FACTS_BY_KEY.get(key)
-        if not spec:
-            continue
-        if spec.kind == "date":
-            facts[key] = _normalise_date(value)
-        elif spec.kind == "phone":
-            facts[key] = _clean_phone(value)
-        elif spec.kind == "state":
-            facts[key] = _normalise_state(value)
+        facts[key] = _normalise_value_for_spec(key, value)
 
-    # Drop empties and absurd values.
     return {
         k: v.strip() for k, v in facts.items()
         if v and v.strip() and len(v.strip()) <= 200

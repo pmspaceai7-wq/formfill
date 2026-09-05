@@ -1,0 +1,31 @@
+================================================================================
+PART 3: EDUCATION, DEGREES & PROFESSIONAL CREDENTIALS
+================================================================================
+HIGHEST LEVEL OF EDUCATION COMPLETED: Master's Degree
+
+GRADUATE DEGREE:
+Degree Title: Master of Science (M.S.)
+Major / Field of Study: Computer Science (Distributed Systems & Machine Learning)
+University / Institution Name: Stanford University
+Institution Address: 450 Serra Mall
+City: Stanford
+State: CA
+ZIP Code: 94305
+Country: United States
+Date Degree Conferred / Completed: 06/15/2016
+GPA: 3.92 / 4.00
+
+UNDERGRADUATE DEGREE:
+Degree Title: Bachelor of Science (B.S. with Honors)
+Major / Field of Study: Software Engineering
+University / Institution Name: University of Oxford
+Institution Address: University Offices, Wellington Square
+City: Oxford
+Postal Code: OX1 2JD
+Country: United Kingdom
+Date Degree Conferred: 06/20/2014
+
+PROFESSIONAL LICENSES & CERTIFICATIONS:
+1. AWS Certified Solutions Architect - Professional (Cert ID: AWS-892104-PSA)
+2. Certified Kubernetes Administrator (CKA - Linux Foundation)
+3. Total Years of Direct Specialized Technical Experience: 9 Years

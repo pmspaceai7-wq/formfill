@@ -1,6 +1,6 @@
 "use client";
 
-import type { FormField } from "@/lib/types";
+import type { FieldCitation, FieldConflict, FieldInference, FormField } from "@/lib/types";
 import { FieldBox } from "./FieldBox";
 
 interface Props {
@@ -11,11 +11,22 @@ interface Props {
   aiValues: Record<string, string>;    // values filled by AI
   userEdited: Set<string>;             // field_ids the user has typed into
   onChange: (fieldId: string, value: string) => void;
+  citations?: Record<string, FieldCitation>;
+  conflicts?: Record<string, FieldConflict>;
+  inferences?: Record<string, FieldInference>;
 }
 
 export function FieldOverlay({
-  fields, renderedWidth, renderedHeight,
-  values, aiValues, userEdited, onChange,
+  fields,
+  renderedWidth,
+  renderedHeight,
+  values,
+  aiValues,
+  userEdited,
+  onChange,
+  citations = {},
+  conflicts = {},
+  inferences = {},
 }: Props) {
   return (
     <div style={{ position: "absolute", top: 0, left: 0, width: renderedWidth, height: renderedHeight, zIndex: 10 }}>
@@ -35,6 +46,9 @@ export function FieldOverlay({
               tabIndex={idx + 1}
               aiSource={field.field_id in aiValues && !userEdited.has(field.field_id)}
               userEdited={userEdited.has(field.field_id)}
+              citation={citations[field.field_id]}
+              conflict={conflicts[field.field_id]}
+              inference={inferences[field.field_id]}
             />
           </div>
         );

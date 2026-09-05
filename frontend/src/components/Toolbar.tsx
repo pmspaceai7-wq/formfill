@@ -41,6 +41,8 @@ interface Props {
   onDownload: () => void;
   downloading: boolean;
   onResetForm?: () => void;
+  conflictCount?: number;
+  onNextConflict?: () => void;
 }
 
 export function Toolbar({
@@ -67,6 +69,8 @@ export function Toolbar({
   onDownload,
   downloading,
   onResetForm,
+  conflictCount = 0,
+  onNextConflict,
 }: Props) {
   const emptyCount = Math.max(0, fieldCount - filledCount);
   const pct = fillTotal > 0 ? Math.round((fillDone / fillTotal) * 100) : 0;
@@ -141,6 +145,18 @@ export function Toolbar({
             <span className="text-slate-300">•</span>
             <span className="text-slate-500">{emptyCount} empty</span>
           </div>
+
+          {/* Conflict Badge if any */}
+          {conflictCount > 0 && (
+            <button
+              onClick={onNextConflict}
+              className="px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs animate-pulse cursor-pointer"
+              title="Review source data conflicts"
+            >
+              <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+              <span>⚠️ {conflictCount} Conflict{conflictCount > 1 ? "s" : ""}</span>
+            </button>
+          )}
 
           {/* Next Empty Jump */}
           <button

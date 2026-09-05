@@ -72,3 +72,75 @@ export interface ProfileResponse {
   profile_id: string;
   facts: ProfileFact[];
 }
+
+export interface TemplateItem {
+  id: string;
+  code: string;
+  title: string;
+  category: string;
+  pages: number;
+  estimated_fields: number;
+  description: string;
+  required_sources: string[];
+  is_demo_ready: boolean;
+  tags: string[];
+}
+
+export interface TemplateListResponse {
+  templates: TemplateItem[];
+}
+
+export interface DemoLoadResponse {
+  schema: FormSchema;
+  source: SourceSummary;
+}
+
+export interface FieldCitation {
+  field_id: string;
+  fact_key: string;
+  value: string;
+  source_file: string;
+  line_number?: number | null;
+  snippet: string;
+  confidence: number;
+  method: string;
+}
+
+export interface CandidateValue {
+  value: string;
+  source_file: string;
+  line_number?: number | null;
+  snippet: string;
+  confidence: number;
+  method: string;
+}
+
+export interface FieldConflict {
+  field_id: string;
+  fact_key: string;
+  field_label: string;
+  current_value: string;
+  candidates: CandidateValue[];
+}
+
+export interface FieldInference {
+  field_id: string;
+  rule_id: string;
+  reasoning: string;
+  source_evidence: string;
+  value: string;
+}
+
+export interface FillStatus {
+  job_id: string;
+  status: "running" | "complete" | "error";
+  done: number;
+  total: number;
+  error?: string;
+  values?: Record<string, string>;
+  citations?: Record<string, FieldCitation>;
+  conflicts?: FieldConflict[];
+  inferences?: Record<string, FieldInference>;
+}
+
+

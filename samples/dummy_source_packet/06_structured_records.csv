@@ -1,0 +1,40 @@
+Category,Field_Identifier,Display_Label,Standard_Value
+Company,petitioner_name,Petitioner Legal Business Name,Nexus Global Technologies Inc.
+Company,fein_tax_id,IRS Employer Identification Number (FEIN),12-3456789
+Company,company_address,Company Headquarters Address,450 Mission Street Suite 1200
+Company,company_city,Company City,San Francisco
+Company,company_state,Company State,CA
+Company,company_zip,Company ZIP Code,94105
+Company,gross_income,Gross Annual Revenue,$48500000
+Company,net_income,Net Annual Revenue,$12300000
+Company,us_employees,Total US Employees,240
+Signatory,signatory_name,Authorized Signatory Name,Eleanor Claire Vance
+Signatory,signatory_title,Signatory Official Title,Chief Operating Officer
+Signatory,signatory_phone,Signatory Contact Phone,(415) 555-0199
+Signatory,signatory_email,Signatory Work Email,eleanor.vance@nexusglobal.com
+Beneficiary,last_name,Beneficiary Family Name (Last Name),Wright
+Beneficiary,first_name,Beneficiary Given Name (First Name),Alexander
+Beneficiary,middle_name,Beneficiary Middle Name,James
+Beneficiary,dob,Beneficiary Date of Birth,08/14/1992
+Beneficiary,ssn,Social Security Number (SSN),123-45-6789
+Beneficiary,a_number,Alien Registration Number,A-098765432
+Beneficiary,country_birth,Country of Birth,United Kingdom
+Beneficiary,country_citizenship,Country of Citizenship,United Kingdom
+Beneficiary,passport_num,Passport Number,UK98234710
+Beneficiary,passport_exp,Passport Expiration Date,11/20/2032
+Beneficiary,home_address,Current US Residential Address,742 Evergreen Terrace Apt 4B
+Beneficiary,home_city,Current City,San Francisco
+Beneficiary,home_state,Current State,CA
+Beneficiary,home_zip,Current ZIP Code,94107
+Beneficiary,email,Primary Contact Email,alexander.wright@nexusglobal.com
+Employment,job_title,Proposed Position Title,Lead Distributed Systems Architect
+Employment,soc_code,Standard Occupational Code (SOC),15-1252.00
+Employment,wage_annual,Offered Annual Base Salary,$185000.00
+Employment,start_date,Employment Requested Start Date,10/01/2026
+Employment,end_date,Employment Requested End Date,09/30/2029
+Immigration,current_status,Current Nonimmigrant Status,H-1B
+Immigration,i94_number,Form I-94 Arrival Record Number,98234710291
+Immigration,prior_receipt,Prior Petition Receipt Number,WAC-21-900-54321
+Education,highest_degree,Highest Degree Awarded,Master of Science
+Education,university_name,Degree Granting Institution,Stanford University
+Education,degree_year,Year Degree Conferred,2016

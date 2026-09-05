@@ -23,9 +23,10 @@ interface FileRow {
 
 interface Props {
   onSourceReady: (sourceId: string) => void;
+  initialSummary?: SourceSummary | null;
 }
 
-export function SourcePanel({ onSourceReady }: Props) {
+export function SourcePanel({ onSourceReady, initialSummary }: Props) {
   const [rows, setRows] = useState<FileRow[]>([]);
   const [warnings, setWarnings] = useState<{ file: string; warning: string }[]>([]);
   const [pastedText, setPastedText] = useState("");
@@ -34,6 +35,24 @@ export function SourcePanel({ onSourceReady }: Props) {
   const [learned, setLearned] = useState<{ added: number; total: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [activeTab, setActiveTab] = useState<"files" | "paste">("files");
+
+  React.useEffect(() => {
+    if (initialSummary) {
+      setSourceId(initialSummary.source_id);
+      setWarnings(initialSummary.warnings || []);
+      setLearned({
+        added: initialSummary.facts_learned ?? 0,
+        total: initialSummary.facts_total ?? 0,
+      });
+      setRows(
+        initialSummary.items.map((it) => ({
+          name: it.name,
+          size: it.chars,
+          chars: it.chars,
+        }))
+      );
+    }
+  }, [initialSummary]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -245,7 +264,7 @@ export function SourcePanel({ onSourceReady }: Props) {
             <button
               onClick={() =>
                 setPastedText(
-                  "Full Name: Aswathi S Kumar\nEmail: aswathisajik1@gmail.com\nPhone: 7306259524\nCity: Kottayam\nState: Kerala\nCountry: India\nJob Title: Python Full Stack Developer"
+                  "Full Name: Alexander Vance\nEmail: alex.vance@quantumtech.io\nPhone: (415) 890-2341\nCity: San Francisco\nState: California\nCountry: United States\nJob Title: Senior Software Architect"
                 )
               }
               className="text-blue-600 font-semibold hover:underline text-[10px] cursor-pointer"

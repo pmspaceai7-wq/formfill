@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { FieldCitation, FieldConflict, FieldInference } from "@/lib/types";
 import { startFill, getFill } from "@/lib/api";
 
 export type FillJobState = {
@@ -8,12 +9,22 @@ export type FillJobState = {
   done: number;
   total: number;
   values: Record<string, string> | null;
+  citations: Record<string, FieldCitation>;
+  conflicts: FieldConflict[];
+  inferences: Record<string, FieldInference>;
   error: string;
 };
 
 export function useFillJob() {
   const [state, setState] = useState<FillJobState>({
-    status: "idle", done: 0, total: 0, values: null, error: "",
+    status: "idle",
+    done: 0,
+    total: 0,
+    values: null,
+    citations: {},
+    conflicts: [],
+    inferences: {},
+    error: "",
   });
   const jobIdRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -34,7 +45,16 @@ export function useFillJob() {
       if (!mountedRef.current) return;
 
       if (data.status === "complete") {
-        setState({ status: "complete", done: data.done, total: data.total, values: data.values ?? {}, error: "" });
+        setState({
+          status: "complete",
+          done: data.done,
+          total: data.total,
+          values: data.values ?? {},
+          citations: data.citations ?? {},
+          conflicts: data.conflicts ?? [],
+          inferences: data.inferences ?? {},
+          error: "",
+        });
       } else if (data.status === "error") {
         setState(s => ({ ...s, status: "error", error: data.error || "Fill failed" }));
       } else {
@@ -49,19 +69,41 @@ export function useFillJob() {
 
   const start = useCallback(async (formId: string, sourceId: string) => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    setState({ status: "running", done: 0, total: 0, values: null, error: "" });
+    setState({
+      status: "running",
+      done: 0,
+      total: 0,
+      values: null,
+      citations: {},
+      conflicts: [],
+      inferences: {},
+      error: "",
+    });
     try {
       const job = await startFill(formId, sourceId);
       jobIdRef.current = job.job_id;
-      timerRef.current = setTimeout(() => poll(job.job_id), 1500);
+      timerRef.current = setTimeout(() => poll(job.job_id), 1000);
     } catch (e) {
-      setState(s => ({ ...s, status: "error", error: e instanceof Error ? e.message : "Start failed" }));
+      setState((s) => ({
+        ...s,
+        status: "error",
+        error: e instanceof Error ? e.message : "Start failed",
+      }));
     }
   }, [poll]);
 
   const reset = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    setState({ status: "idle", done: 0, total: 0, values: null, error: "" });
+    setState({
+      status: "idle",
+      done: 0,
+      total: 0,
+      values: null,
+      citations: {},
+      conflicts: [],
+      inferences: {},
+      error: "",
+    });
     jobIdRef.current = null;
   }, []);
 

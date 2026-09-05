@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import type { FormField } from "@/lib/types";
+import type { FieldCitation, FieldConflict, FieldInference, FormField } from "@/lib/types";
+import { CitationTooltip } from "./CitationTooltip";
+import { ConflictResolverCard } from "./ConflictResolverCard";
 
 interface Props {
   field: FormField;
@@ -10,25 +12,44 @@ interface Props {
   tabIndex: number;
   aiSource: boolean;   // value came from AI
   userEdited: boolean; // user typed over it
+  citation?: FieldCitation;
+  conflict?: FieldConflict;
+  inference?: FieldInference;
 }
 
-export function FieldBox({ field, value, onChange, tabIndex, aiSource, userEdited }: Props) {
+export function FieldBox({
+  field,
+  value,
+  onChange,
+  tabIndex,
+  aiSource,
+  userEdited,
+  citation,
+  conflict,
+  inference,
+}: Props) {
   const [showTip, setShowTip] = useState(false);
+  const [showConflictCard, setShowConflictCard] = useState(false);
   const isReadOnly = field.read_only || field.type === "signature";
+  const hasConflict = Boolean(conflict && (conflict.candidates?.length ?? 0) >= 2);
 
-  // Visual state: user-edited = green, ai-filled = blue, empty = dashed outline
+  // Visual state: conflict = amber border, user-edited = green, ai-filled = blue, empty = dashed outline
   const bg = isReadOnly
     ? "rgba(200,200,200,0.35)"
+    : hasConflict && !userEdited
+    ? "rgba(254, 243, 199, 0.75)" // amber-100
     : userEdited
     ? "rgba(187,247,208,0.65)"   // green
     : aiSource
     ? "rgba(147,210,255,0.65)"   // blue
     : "rgba(173,216,255,0.35)";  // faint blue (empty)
 
-  const borderLeft = userEdited
-    ? "3px solid #16a34a"
+  const borderLeft = hasConflict && !userEdited
+    ? "3px solid #d97706"        // amber-600
+    : userEdited
+    ? "3px solid #16a34a"        // green-600
     : aiSource
-    ? "3px solid #2563eb"
+    ? "3px solid #2563eb"        // blue-600
     : "1px dashed #93c5fd";
 
   const shared: React.CSSProperties = {
@@ -48,21 +69,64 @@ export function FieldBox({ field, value, onChange, tabIndex, aiSource, userEdite
     pointerEvents: "auto",
   };
 
-  const tip = showTip ? (
-    <div style={{
-      position: "absolute", bottom: "105%", left: 0, zIndex: 9999,
-      background: "#1e293b", color: "#fff", padding: "5px 8px",
-      borderRadius: 5, fontSize: 11, whiteSpace: "pre-wrap",
-      maxWidth: 260, pointerEvents: "none",
-      boxShadow: "0 2px 8px rgba(0,0,0,0.35)", lineHeight: 1.4,
-    }}>
-      <div><b>Name:</b> {field.label}</div>
-      {field.tooltip && field.tooltip !== field.label &&
-        <div style={{ marginTop: 2 }}><b>Desc:</b> {field.tooltip}</div>}
-      {aiSource && !userEdited && <div style={{ marginTop: 2, color: "#93c5fd" }}>🤖 AI filled</div>}
-      {userEdited && <div style={{ marginTop: 2, color: "#86efac" }}>✏️ You edited</div>}
-    </div>
+  const tip = showTip && !showConflictCard ? (
+    aiSource || Boolean(citation) || Boolean(inference) ? (
+      <CitationTooltip
+        citation={citation}
+        inference={inference}
+        fieldName={field.raw_name}
+        fieldLabel={field.label}
+        value={value}
+      />
+    ) : (
+      <div
+        style={{
+          position: "absolute",
+          bottom: "105%",
+          left: 0,
+          zIndex: 9999,
+          background: "#1e293b",
+          color: "#fff",
+          padding: "5px 8px",
+          borderRadius: 6,
+          fontSize: 11,
+          whiteSpace: "pre-wrap",
+          maxWidth: 260,
+          pointerEvents: "none",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
+          lineHeight: 1.4,
+        }}
+      >
+        <div><b>Name:</b> {field.label}</div>
+        {field.tooltip && field.tooltip !== field.label && (
+          <div style={{ marginTop: 2 }}><b>Desc:</b> {field.tooltip}</div>
+        )}
+        {userEdited && (
+          <div style={{ marginTop: 2, color: "#86efac" }}>✏️ You edited</div>
+        )}
+      </div>
+    )
   ) : null;
+
+  const conflictBadge = hasConflict && (
+    <div
+      onClick={(e) => {
+        e.stopPropagation();
+        setShowConflictCard(!showConflictCard);
+      }}
+      title={`Data conflict: ${conflict!.candidates.length} candidate sources`}
+      style={{
+        position: "absolute",
+        top: -6,
+        right: -6,
+        zIndex: 50,
+        cursor: "pointer",
+      }}
+      className="w-4 h-4 rounded-full bg-amber-500 text-slate-950 font-bold text-[9px] flex items-center justify-center shadow-md animate-bounce hover:scale-125 transition-transform"
+    >
+      !
+    </div>
+  );
 
   const wrap = (child: React.ReactNode) => (
     <div
@@ -71,6 +135,16 @@ export function FieldBox({ field, value, onChange, tabIndex, aiSource, userEdite
       onMouseLeave={() => setShowTip(false)}
     >
       {tip}
+      {conflictBadge}
+      {showConflictCard && conflict && (
+        <ConflictResolverCard
+          conflict={conflict}
+          onSelectCandidate={(selectedVal) => {
+            onChange(selectedVal);
+          }}
+          onClose={() => setShowConflictCard(false)}
+        />
+      )}
       {child}
     </div>
   );

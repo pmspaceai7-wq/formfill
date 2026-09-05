@@ -1,0 +1,41 @@
+================================================================================
+PART 2: BENEFICIARY PERSONAL IDENTITY & RESIDENCE DATA
+================================================================================
+Legal Family Name (Last Name): Wright
+Legal Given Name (First Name): Alexander
+Legal Middle Name: James
+Full Legal Name: Alexander James Wright
+All Other Names Used: Alex Wright, A. J. Wright
+Gender: Male
+Date of Birth: 08/14/1992
+City / Town of Birth: London
+State / Province of Birth: Greater London
+Country of Birth: United Kingdom
+Country of Citizenship / Nationality: United Kingdom
+
+IDENTIFICATION NUMBERS:
+U.S. Social Security Number (SSN): 123-45-6789
+USCIS Online Account Number: 123456789012
+Alien Registration Number (A-Number): A-098765432
+
+PASSPORT & TRAVEL CREDENTIALS:
+Passport Number: UK98234710
+Passport Country of Issuance: United Kingdom
+Passport Issue Date: 11/21/2022
+Passport Expiration Date: 11/20/2032
+National ID Number: UK-NIN-78901234
+
+CURRENT U.S. RESIDENTIAL ADDRESS:
+Street Address: 742 Evergreen Terrace, Apt 4B
+City: San Francisco
+State: California
+ZIP / Postal Code: 94107
+Country: United States
+Primary Contact Phone: (415) 555-0142
+Personal Email: alexander.wright@nexusglobal.com
+
+FOREIGN RESIDENTIAL ADDRESS (OUTSIDE UNITED STATES):
+Foreign Street Address: 14 Kensington High Street
+City: London
+Postal Code: W8 4NP
+Country: United Kingdom

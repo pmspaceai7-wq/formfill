@@ -194,11 +194,16 @@ def is_unmatchable(query: str) -> bool:
 
 _ALIAS_STRINGS = [a for a, _ in ALIAS_PAIRS]
 _ALIAS_KEYS = [k for _, k in ALIAS_PAIRS]
+_ALIAS_EXACT_MAP: dict[str, str] = {a.lower().strip(): k for a, k in ALIAS_PAIRS}
 
 
+@lru_cache(maxsize=2048)
 def _fuzzy_match(query: str) -> tuple[Optional[str], float]:
     if not query:
         return None, 0.0
+    q = query.lower().strip()
+    if q in _ALIAS_EXACT_MAP:
+        return _ALIAS_EXACT_MAP[q], 100.0
     hit = process.extractOne(query, _ALIAS_STRINGS, scorer=fuzz.WRatio)
     if not hit:
         return None, 0.0

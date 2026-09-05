@@ -1,4 +1,11 @@
-import type { FormSchema, ProfileResponse, SourceSummary } from "./types";
+import type {
+  DemoLoadResponse,
+  FillStatus,
+  FormSchema,
+  ProfileResponse,
+  SourceSummary,
+  TemplateListResponse,
+} from "./types";
 
 function getBase(): string {
   if (typeof window !== "undefined") {
@@ -47,15 +54,6 @@ export async function getSource(sourceId: string): Promise<SourceSummary> {
   const res = await fetch(`${getBase()}/api/sources/${sourceId}`);
   if (!res.ok) throw new Error("Source not found");
   return res.json();
-}
-
-export interface FillStatus {
-  job_id: string;
-  status: string;
-  done: number;
-  total: number;
-  error: string;
-  values: Record<string, string> | null;
 }
 
 export async function startFill(formId: string, sourceId: string): Promise<FillStatus> {
@@ -118,3 +116,35 @@ export async function exportPdf(
   }
   return res.blob();
 }
+
+// ---------------------------------------------------------------------------
+// Templates Hub & 1-Click Demo API
+// ---------------------------------------------------------------------------
+
+export async function getTemplates(): Promise<TemplateItem[]> {
+  const res = await fetch(`${getBase()}/api/templates`);
+  if (!res.ok) throw new Error("Failed to load template catalog");
+  const data: TemplateListResponse = await res.json();
+  return data.templates;
+}
+
+export async function loadDemoTemplate(): Promise<DemoLoadResponse> {
+  const res = await fetch(`${getBase()}/api/templates/demo`, { method: "POST" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to load demo" }));
+    throw new Error(err.detail ?? "Failed to load demo");
+  }
+  return res.json();
+}
+
+export async function loadTemplateById(templateId: string): Promise<FormSchema> {
+  const res = await fetch(`${getBase()}/api/templates/${templateId}/load`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to load template" }));
+    throw new Error(err.detail ?? "Failed to load template");
+  }
+  return res.json();
+}
+

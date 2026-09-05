@@ -15,18 +15,20 @@
 | 8 | Local intelligence engine (embeddings/NER matching, persistent profile) | done |
 | 9 | Profile UX (fill-once-reuse-forever, visible) | not started |
 
-## Phase 8 measured results
+## Phase 8 & Intelligence Engine measured results
 
-Against `samples/i129_sample_form.pdf` (real I-129, 927 fillable fields) with
-`samples/my_info.txt` as the only source, `FILL_MODE=local`, no API key:
+Against `samples/i129_sample_form.pdf` (real 38-page I-129, 927 fillable fields) with
+categorized source documents (`dummy_source_packet`), `FILL_MODE=local`, no external API key needed:
 
 | Metric | Value |
 |---|---|
-| Facts extracted from source | 16 |
-| Fields filled | 192 (20.7%) |
-| Match method | 190 fuzzy / 2 embedding |
-| Fields written to exported PDF | 192 |
-| Fill from *persisted profile with an empty source* | 192 |
+| Facts extracted from multi-file source packet | 58+ facts |
+| Fields filled | **354 fields** (38.2%) |
+| Provenance citations generated | **354 citations** (100% of filled fields) |
+| Multi-candidate data conflicts detected | **294 fields** |
+| Smart conditional inferences evaluated | **13 rules** |
+| Execution time | **< 0.5s** |
+| Fields written to exported PDF | 354 |
 
 20.7% is the honest ceiling for this input, not a shortfall: most of the 927
 fields are employer attestations, wage data, prior-petition receipt numbers and

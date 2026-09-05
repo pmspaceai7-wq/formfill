@@ -1,0 +1,37 @@
+================================================================================
+PART 4: PROPOSED EMPLOYMENT, JOB DUTIES & COMPENSATION
+================================================================================
+Job Title: Lead Distributed Systems Architect
+Standard Occupational Classification (SOC) Code: 15-1252.00
+SOC Occupational Title: Software Developers, Systems Software
+Employment Type: Full-time (40 Hours Per Week)
+Proposed Employment Start Date: 10/01/2026
+Proposed Employment End Date: 09/30/2029
+
+WAGE & COMPENSATION:
+Base Annual Salary / Offered Wage: $185,000.00 Per Year
+Rate of Pay: $185,000.00 / Year ($88.94 / Hour)
+Prevailing Wage Level: Level IV (OES / PWD Wage: $162,400.00 / Year)
+Prevailing Wage Source: OFLC Online Data Center (OES)
+Prevailing Wage Tracking Number: P-100-26120-998811
+
+PRIMARY WORKSITE LOCATION:
+Street Address: 450 Mission Street, Suite 1200
+City: San Francisco
+County: San Francisco County
+State: California
+ZIP Code: 94105
+Country: United States
+
+SECONDARY / REMOTE WORKSITE LOCATION:
+Street Address: 742 Evergreen Terrace, Apt 4B
+City: San Francisco
+State: California
+ZIP Code: 94107
+Country: United States
+
+SUMMARY OF JOB DUTIES:
+- Design, architect, and optimize high-throughput distributed form automation microservices handling 50M+ requests annually (35% time).
+- Develop vector-accurate AcroForm object mapping engines and geometric coordinate parsers (25% time).
+- Oversee cloud Kubernetes cluster deployments, automated fault tolerance, and zero-retention session memory security (20% time).
+- Lead technical code reviews, guide junior and senior backend engineers, and maintain enterprise SLAs (20% time).

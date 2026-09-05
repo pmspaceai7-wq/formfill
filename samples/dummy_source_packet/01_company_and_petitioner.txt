@@ -1,0 +1,32 @@
+================================================================================
+PART 1: PETITIONER / EMPLOYER COMPANY INFORMATION
+================================================================================
+Legal Business Name: Nexus Global Technologies Inc.
+Trade Name / DBA: Nexus AI Labs
+IRS Employer Identification Number (FEIN): 12-3456789
+State of Incorporation / Organization: California
+Country of Incorporation: United States
+Date Established: 03/15/2018
+Primary Business Address: 450 Mission Street, Suite 1200
+City: San Francisco
+State: CA
+Postal / ZIP Code: 94105
+Country: United States
+Company Phone Number: (415) 555-0100
+Company Website: https://www.nexusglobal.com
+
+AUTHORIZED SIGNATORY & CONTACT:
+Signatory Family Name: Vance
+Signatory Given Name: Eleanor
+Signatory Middle Name: Claire
+Signatory Job Title: Chief Operating Officer
+Signatory Email: eleanor.vance@nexusglobal.com
+Signatory Direct Daytime Phone: (415) 555-0199
+
+BUSINESS FINANCIALS & OPERATIONS:
+Gross Annual Income: $48,500,000.00
+Net Annual Income: $12,300,000.00
+Total Number of Employees in the United States: 240
+Total Number of H-1B Employees: 18
+NAICS Code: 541511 (Custom Computer Programming Services)
+Primary Business Activity: Enterprise artificial intelligence and high-throughput document processing infrastructure.

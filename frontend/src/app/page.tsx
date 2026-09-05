@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { uploadForm, exportPdf } from "@/lib/api";
-import type { FormSchema } from "@/lib/types";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { uploadForm, exportPdf, getProfile, loadDemoTemplate, loadTemplateById } from "@/lib/api";
+import type { FieldConflict, FormSchema, SourceSummary } from "@/lib/types";
 import { Navbar } from "@/components/Navbar";
 import { HeroUpload } from "@/components/HeroUpload";
 import { Toolbar } from "@/components/Toolbar";
@@ -10,9 +10,9 @@ import { PdfPage } from "@/components/PdfPage";
 import { FieldOverlay } from "@/components/FieldOverlay";
 import { SourcePanel } from "@/components/SourcePanel";
 import { ProfileDrawer } from "@/components/ProfileDrawer";
+import { TemplatesModal } from "@/components/TemplatesModal";
 import { useFillJob } from "@/hooks/useFillJob";
 import { AlertCircleIcon, RefreshCwIcon } from "@/components/Icons";
-import { getProfile } from "@/lib/api";
 
 type State = "empty" | "uploading" | "loaded" | "error";
 
@@ -33,13 +33,20 @@ export default function Home() {
 
   // Source panel
   const [sourceId, setSourceId] = useState<string | null>(null);
+  const [sourceSummary, setSourceSummary] = useState<SourceSummary | null>(null);
   const [downloading, setDownloading] = useState(false);
 
   // Profile — details remembered across forms
   const [profileOpen, setProfileOpen] = useState(false);
   const [factCount, setFactCount] = useState(0);
 
+  // Template Hub & 1-Click Demo
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [loadingDemo, setLoadingDemo] = useState(false);
+  const [loadingTemplateId, setLoadingTemplateId] = useState<string | null>(null);
+
   const fillJob = useFillJob();
+
 
   // Load the remembered-detail count on mount so the header badge is accurate
   // even before the user touches anything.
@@ -117,6 +124,41 @@ export default function Home() {
     }, 100);
   }, [schema, values, page]);
 
+  const conflictsMap = useMemo(() => {
+    const map: Record<string, FieldConflict> = {};
+    const list = fillJob.conflicts ?? [];
+    for (const c of list) {
+      if (c && c.field_id) {
+        map[c.field_id] = c;
+      }
+    }
+    return map;
+  }, [fillJob.conflicts]);
+
+  const focusNextConflict = useCallback(() => {
+    const conflictsList = fillJob.conflicts ?? [];
+    if (!schema || conflictsList.length === 0) return;
+    const conflictFieldIds = new Set(conflictsList.map((c) => c.field_id));
+    const sorted = [...schema.fields].sort((a, b) => {
+      if (a.page !== b.page) return a.page - b.page;
+      if (Math.abs(a.bbox[1] - b.bbox[1]) > 0.01) return a.bbox[1] - b.bbox[1];
+      return a.bbox[0] - b.bbox[0];
+    });
+    const conflictFields = sorted.filter((f) => conflictFieldIds.has(f.field_id));
+    if (conflictFields.length === 0) return;
+    const first = conflictFields[0];
+    if (first.page !== page) setPage(first.page);
+    setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(
+        `[data-field="${first.field_id}"]`
+      );
+      if (el) {
+        el.focus();
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    }, 100);
+  }, [schema, fillJob.conflicts, page]);
+
   const handleDownload = useCallback(async () => {
     if (!schema) return;
     setDownloading(true);
@@ -154,12 +196,63 @@ export default function Home() {
         setAiValues({});
         setUserEdited(new Set());
         setSourceId(null);
+        setSourceSummary(null);
         fillJob.reset();
         setState("loaded");
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Upload failed";
         setError(msg);
         setState("error");
+      }
+    },
+    [fillJob]
+  );
+
+  const handleLoadDemo = useCallback(async () => {
+    setError("");
+    setLoadingDemo(true);
+    try {
+      const demo = await loadDemoTemplate();
+      setSchema(demo.schema);
+      setSourceId(demo.source.source_id);
+      setSourceSummary(demo.source);
+      setPage(1);
+      setValues({});
+      setAiValues({});
+      setUserEdited(new Set());
+      fillJob.reset();
+      if (demo.source.facts_total !== undefined) {
+        setFactCount(demo.source.facts_total);
+      }
+      setState("loaded");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load demo");
+      setState("error");
+    } finally {
+      setLoadingDemo(false);
+    }
+  }, [fillJob]);
+
+  const handleLoadTemplate = useCallback(
+    async (templateId: string) => {
+      setError("");
+      setLoadingTemplateId(templateId);
+      try {
+        const loadedSchema = await loadTemplateById(templateId);
+        setSchema(loadedSchema);
+        setPage(1);
+        setValues({});
+        setAiValues({});
+        setUserEdited(new Set());
+        setSourceId(null);
+        setSourceSummary(null);
+        fillJob.reset();
+        setState("loaded");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load template");
+        setState("error");
+      } finally {
+        setLoadingTemplateId(null);
       }
     },
     [fillJob]
@@ -173,6 +266,7 @@ export default function Home() {
     setAiValues({});
     setUserEdited(new Set());
     setSourceId(null);
+    setSourceSummary(null);
     fillJob.reset();
   }, [fillJob]);
 
@@ -194,6 +288,25 @@ export default function Home() {
         onReset={resetAll}
         onOpenProfile={() => setProfileOpen(true)}
         factCount={factCount}
+        onLoadDemo={handleLoadDemo}
+        onLoadTemplate={handleLoadTemplate}
+        loadingDemo={loadingDemo}
+        loadingTemplateId={loadingTemplateId}
+      />
+
+      <TemplatesModal
+        open={templatesOpen}
+        onClose={() => setTemplatesOpen(false)}
+        onLoadDemo={async () => {
+          setTemplatesOpen(false);
+          await handleLoadDemo();
+        }}
+        onLoadTemplate={async (id) => {
+          setTemplatesOpen(false);
+          await handleLoadTemplate(id);
+        }}
+        loadingDemo={loadingDemo}
+        loadingTemplateId={loadingTemplateId}
       />
 
       <ProfileDrawer
@@ -233,8 +346,8 @@ export default function Home() {
           </div>
         </div>
       ) : (
-        /* Form Studio Workspace */
-        <div className="flex flex-col flex-1 min-h-0">
+        /* Form Studio Workspace with Smooth Entrance Animation */
+        <div className="flex flex-col flex-1 min-h-0 animate-fade-in-up">
           <Toolbar
             filename={schema!.filename}
             page={page}
@@ -264,12 +377,17 @@ export default function Home() {
             onDownload={handleDownload}
             downloading={downloading}
             onResetForm={resetAll}
+            conflictCount={fillJob.conflicts?.length ?? 0}
+            onNextConflict={focusNextConflict}
           />
 
           <div className="flex flex-1 min-h-0 items-start">
             {/* Left Source Documents Studio Panel — sticks while the page scrolls */}
             <div className="flex-shrink-0 z-20 sticky top-[104px] self-start max-h-[calc(100vh-104px)]">
-              <SourcePanel onSourceReady={(id) => setSourceId(id)} />
+              <SourcePanel
+                onSourceReady={(id) => setSourceId(id)}
+                initialSummary={sourceSummary}
+              />
             </div>
 
             {/* Center Canvas PDF Viewer */}
@@ -293,6 +411,9 @@ export default function Home() {
                     aiValues={aiValues}
                     userEdited={userEdited}
                     onChange={handleChange}
+                    citations={fillJob.citations ?? {}}
+                    conflicts={conflictsMap}
+                    inferences={fillJob.inferences ?? {}}
                   />
                 )}
               </div>

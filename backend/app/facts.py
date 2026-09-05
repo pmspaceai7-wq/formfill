@@ -162,12 +162,65 @@ FACT_SPECS: list[FactSpec] = [
     # ---- Education ------------------------------------------------------
     FactSpec("education.school", [
         "school name", "university", "college", "institution",
-        "name of school", "educational institution",
+        "name of school", "educational institution", "degree granting institution",
     ], "other"),
     FactSpec("education.degree", [
         "degree", "qualification", "level of education", "highest degree",
-        "field of study", "major",
+        "field of study", "major", "highest degree awarded",
     ], "other"),
+
+    # ---- Immigration & Petitions ----------------------------------------
+    FactSpec("immigration.current_status", [
+        "current nonimmigrant status", "class of admission", "current status",
+        "visa classification", "nonimmigrant status", "status at last arrival",
+    ], "identity"),
+    FactSpec("immigration.i94_number", [
+        "i-94 arrival-departure record number", "form i-94 arrival-departure record number",
+        "i-94 number", "arrival-departure record", "i94 number", "i94 record number",
+    ], "identity"),
+    FactSpec("immigration.prior_receipt", [
+        "receipt number of previous petition", "prior petition receipt number",
+        "receipt number", "prior receipt number", "previous receipt number",
+    ], "identity"),
+
+    # ---- Company & Employer Financials ----------------------------------
+    FactSpec("company.fein", [
+        "federal employer identification number", "ein", "fein",
+        "employer identification number", "fein tax id", "irs employer identification number",
+    ], "employment"),
+    FactSpec("company.gross_annual_income", [
+        "gross annual income", "gross annual revenue", "gross revenue", "gross income",
+    ], "employment"),
+    FactSpec("company.net_annual_income", [
+        "net annual income", "net annual revenue", "net income", "net annual revenue",
+    ], "employment"),
+    FactSpec("company.us_employees", [
+        "total number of employees in the united states", "number of employees",
+        "total us employees", "current number of employees in the united states",
+    ], "employment"),
+    FactSpec("employment.soc_code", [
+        "standard occupational classification soc code", "soc code",
+        "occupational code", "standard occupational code",
+    ], "employment"),
+
+    # ---- Authorized Signatory -------------------------------------------
+    FactSpec("signatory.name", [
+        "authorized signatory name", "name of person authorized to sign",
+        "petitioner authorized signatory", "signatory name",
+        "print name of authorized signatory", "authorized representative name",
+    ], "employment"),
+    FactSpec("signatory.title", [
+        "signatory official title", "title of authorized signatory",
+        "signatory title", "official title", "title of authorized representative",
+    ], "employment"),
+    FactSpec("signatory.phone", [
+        "signatory contact phone", "daytime phone number of authorized signatory",
+        "signatory daytime telephone", "authorized signatory phone",
+    ], "employment", kind="phone"),
+    FactSpec("signatory.email", [
+        "signatory work email", "email address of authorized signatory",
+        "authorized signatory email",
+    ], "employment", kind="email"),
 ]
 
 
