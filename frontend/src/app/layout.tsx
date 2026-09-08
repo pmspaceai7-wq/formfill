@@ -6,6 +6,8 @@ export const metadata: Metadata = {
   description: "Automate complex PDF forms with intelligent auto-matching. Fill tax, legal, and employment forms in seconds with zero manual typing.",
 };
 
+import { AuthProvider } from "@/lib/AuthContext";
+
 export default function RootLayout({
   children,
 }: {
@@ -13,7 +15,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="h-full">
-      <body className="h-full">{children}</body>
+      <body className="h-full">
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

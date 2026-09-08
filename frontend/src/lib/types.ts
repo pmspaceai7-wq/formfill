@@ -143,4 +143,26 @@ export interface FillStatus {
   inferences?: Record<string, FieldInference>;
 }
 
+export interface TemplateItem {
+  id: string;
+  code: string;
+  title: string;
+  category: string;
+  pages: number;
+  estimated_fields: number;
+  description: string;
+  required_sources: string[];
+  is_demo_ready: boolean;
+  tags: string[];
+}
+
+export interface TemplateListResponse {
+  templates: TemplateItem[];
+}
+
+export interface DemoLoadResponse {
+  schema: FormSchema;
+  source: SourceSummary;
+}
+
 

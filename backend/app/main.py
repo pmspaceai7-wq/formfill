@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import shutil
 import asyncio
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pdfplumber
@@ -31,13 +32,25 @@ from app.pdf_render import render_pages, render_single_page
 from app.sources import ACCEPTED_EXTENSIONS, extract_text
 from app.storage import _base, form_dir, source_dir, job_dir, new_id, write_json, read_json
 from app import profile as profile_store
+from app.auth import auth_router, connect_db, close_db
 
-app = FastAPI(title="FormFill API")
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """Connect to MongoDB on startup, disconnect on shutdown."""
+    await connect_db()
+    yield
+    await close_db()
+
+
+app = FastAPI(title="FormFill API", lifespan=lifespan)
+
+app.include_router(auth_router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=[settings.FRONTEND_ORIGIN, "http://localhost:3000"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

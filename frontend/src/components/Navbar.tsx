@@ -12,6 +12,7 @@ import {
   AlertCircleIcon,
 } from "./Icons";
 import { TemplatesModal } from "./TemplatesModal";
+import { useAuth } from "@/lib/AuthContext";
 
 interface Props {
   hasForm: boolean;
@@ -77,6 +78,8 @@ export function Navbar({
   loadingDemo,
   loadingTemplateId,
 }: Props) {
+  const { user, login, register, logout } = useAuth();
+
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
   const [showSecurityModal, setShowSecurityModal] = useState(false);
@@ -84,6 +87,12 @@ export function Navbar({
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showSignUpModal, setShowSignUpModal] = useState(false);
   const [showTemplatesModal, setShowTemplatesModal] = useState(false);
+
+  // Login Form State
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState("");
 
   // Sign Up Form State
   const [signUpName, setSignUpName] = useState("");
@@ -93,6 +102,8 @@ export function Navbar({
   const [agreeTerms, setAgreeTerms] = useState(true);
   const [enableEncryption, setEnableEncryption] = useState(true);
   const [signUpSuccess, setSignUpSuccess] = useState(false);
+  const [signUpLoading, setSignUpLoading] = useState(false);
+  const [signUpError, setSignUpError] = useState("");
 
   // Hover Dropdown State for Services
   const [servicesOpen, setServicesOpen] = useState(false);
@@ -109,14 +120,39 @@ export function Navbar({
     }, 180);
   };
 
-  const handleSignUpSubmit = (e: React.FormEvent) => {
+  const handleSignUpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSignUpSuccess(true);
-    setTimeout(() => {
-      setSignUpSuccess(false);
-      setShowSignUpModal(false);
-      if (onReset) onReset();
-    }, 1200);
+    setSignUpError("");
+    setSignUpLoading(true);
+    try {
+      await register(signUpName, signUpEmail, signUpPassword, signUpRole);
+      setSignUpSuccess(true);
+      setTimeout(() => {
+        setSignUpSuccess(false);
+        setShowSignUpModal(false);
+        if (onReset) onReset();
+      }, 1200);
+    } catch (err: unknown) {
+      setSignUpError(err instanceof Error ? err.message : "Registration failed");
+    } finally {
+      setSignUpLoading(false);
+    }
+  };
+
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError("");
+    setLoginLoading(true);
+    try {
+      await login(loginEmail, loginPassword);
+      setShowLoginModal(false);
+      setLoginEmail("");
+      setLoginPassword("");
+    } catch (err: unknown) {
+      setLoginError(err instanceof Error ? err.message : "Invalid credentials");
+    } finally {
+      setLoginLoading(false);
+    }
   };
 
   return (
@@ -315,30 +351,67 @@ export function Navbar({
             </button>
           )}
 
-          <button
-            onClick={() => setShowLoginModal(true)}
-            className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-900 border border-slate-800 hover:border-slate-700 transition-colors cursor-pointer"
-          >
-            Sign in
-          </button>
+          {user ? (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700/80 text-xs text-slate-200 shadow-xs">
+                <div className="w-5 h-5 rounded-full bg-blue-600/30 text-blue-400 border border-blue-500/40 flex items-center justify-center font-bold text-[10px]">
+                  {user.name ? user.name.trim()[0].toUpperCase() : "U"}
+                </div>
+                <div className="flex flex-col text-left">
+                  <span className="font-semibold text-white leading-none truncate max-w-[130px]" title={user.name}>
+                    {user.name}
+                  </span>
+                  <span className="text-[10px] text-slate-400 leading-tight truncate max-w-[130px]" title={user.email}>
+                    {user.email}
+                  </span>
+                </div>
+              </div>
 
-          {hasForm && onReset && (
-            <button
-              onClick={onReset}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
-            >
-              <FileTextIcon size={13} className="text-blue-400" />
-              <span>New Form</span>
-            </button>
+              {hasForm && onReset && (
+                <button
+                  onClick={onReset}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <FileTextIcon size={13} className="text-blue-400" />
+                  <span>New Form</span>
+                </button>
+              )}
+
+              <button
+                onClick={logout}
+                className="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:text-red-400 hover:bg-slate-900 border border-slate-800 hover:border-red-900/50 transition-colors cursor-pointer"
+              >
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={() => setShowLoginModal(true)}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-900 border border-slate-800 hover:border-slate-700 transition-colors cursor-pointer"
+              >
+                Sign in
+              </button>
+
+              {hasForm && onReset && (
+                <button
+                  onClick={onReset}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <FileTextIcon size={13} className="text-blue-400" />
+                  <span>New Form</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => setShowSignUpModal(true)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition-all flex items-center gap-1.5 cursor-pointer hover:scale-[1.02]"
+              >
+                <span>Get Started</span>
+                <span className="text-xs">→</span>
+              </button>
+            </>
           )}
-
-          <button
-            onClick={() => setShowSignUpModal(true)}
-            className="px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition-all flex items-center gap-1.5 cursor-pointer hover:scale-[1.02]"
-          >
-            <span>Get Started</span>
-            <span className="text-xs">→</span>
-          </button>
         </div>
       </header>
 
@@ -393,10 +466,17 @@ export function Navbar({
                   ✓
                 </div>
                 <h4 className="text-base font-bold text-white">Welcome to SpaceFill!</h4>
-                <p className="text-xs text-slate-400">Account configured with on-device session encryption.</p>
+                <p className="text-xs text-slate-400">Account created successfully with MongoDB Atlas sync.</p>
               </div>
             ) : (
               <form onSubmit={handleSignUpSubmit} className="mt-4 space-y-3.5 text-xs">
+                {signUpError && (
+                  <div className="p-2.5 rounded-xl bg-red-950/50 border border-red-800/60 text-red-300 text-xs flex items-center gap-2">
+                    <AlertCircleIcon size={14} className="text-red-400 shrink-0" />
+                    <span>{signUpError}</span>
+                  </div>
+                )}
+
                 {/* 1-Click Social Auth Buttons */}
                 <div className="space-y-2">
                   <button
@@ -521,9 +601,10 @@ export function Navbar({
                 {/* Submit CTA */}
                 <button
                   type="submit"
-                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold transition-colors cursor-pointer shadow-sm text-xs mt-2"
+                  disabled={signUpLoading}
+                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl font-semibold transition-colors cursor-pointer shadow-sm text-xs mt-2"
                 >
-                  Create Free Account →
+                  {signUpLoading ? "Creating account..." : "Create Free Account →"}
                 </button>
 
                 {/* Switcher to Sign In */}
@@ -850,16 +931,64 @@ export function Navbar({
               <p className="text-xs text-slate-400 mt-1">Access your saved templates &amp; history</p>
             </div>
 
-            <div className="mt-5 space-y-2.5">
+            {loginError && (
+              <div className="mt-3 p-2.5 rounded-xl bg-red-950/50 border border-red-800/60 text-red-300 text-xs flex items-center gap-2">
+                <AlertCircleIcon size={14} className="text-red-400 shrink-0" />
+                <span>{loginError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleLoginSubmit} className="mt-4 space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-400 mb-1 font-medium">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  placeholder="name@company.com"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1 font-medium">Password</label>
+                <input
+                  type="password"
+                  required
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 text-xs"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loginLoading}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl font-semibold transition-colors cursor-pointer shadow-sm text-xs mt-1"
+              >
+                {loginLoading ? "Signing in..." : "Sign In →"}
+              </button>
+            </form>
+
+            <div className="flex items-center gap-3 my-3 text-[10px] text-slate-500 uppercase font-semibold">
+              <div className="flex-1 h-px bg-slate-800"></div>
+              <span>or</span>
+              <div className="flex-1 h-px bg-slate-800"></div>
+            </div>
+
+            <div className="space-y-2">
               {/* Continue with Google */}
               <button
+                type="button"
                 onClick={() => {
                   setShowLoginModal(false);
                   if (onReset) onReset();
                 }}
-                className="w-full py-2.5 px-4 rounded-xl border border-slate-700 hover:border-slate-600 bg-slate-800 hover:bg-slate-750 font-medium text-xs text-slate-200 flex items-center justify-center gap-2.5 transition-colors cursor-pointer"
+                className="w-full py-2 px-3 rounded-xl border border-slate-700 hover:border-slate-600 bg-slate-800 hover:bg-slate-750 font-medium text-xs text-slate-200 flex items-center justify-center gap-2 transition-colors cursor-pointer"
               >
-                <svg className="w-4 h-4" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
                   <path
                     fill="#4285F4"
                     d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -879,35 +1008,21 @@ export function Navbar({
                 </svg>
                 <span>Continue with Google</span>
               </button>
+            </div>
 
-              {/* Continue with Gmail / Email */}
+            {/* Switcher to Sign Up */}
+            <div className="text-center pt-3 text-slate-400 text-[11px]">
+              Don&apos;t have an account?{" "}
               <button
+                type="button"
                 onClick={() => {
                   setShowLoginModal(false);
-                  if (onReset) onReset();
+                  setShowSignUpModal(true);
                 }}
-                className="w-full py-2.5 px-4 rounded-xl border border-slate-700 hover:border-slate-600 bg-slate-800 hover:bg-slate-750 font-medium text-xs text-slate-200 flex items-center justify-center gap-2.5 transition-colors cursor-pointer"
+                className="text-blue-400 hover:underline font-semibold cursor-pointer"
               >
-                <svg className="w-4 h-4 text-red-400" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" />
-                </svg>
-                <span>Continue with Gmail / Work Email</span>
+                Create an account
               </button>
-
-              {/* Switcher to Sign Up */}
-              <div className="text-center pt-2 text-slate-400 text-[11px]">
-                Don&apos;t have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowLoginModal(false);
-                    setShowSignUpModal(true);
-                  }}
-                  className="text-blue-400 hover:underline font-semibold cursor-pointer"
-                >
-                  Create an account
-                </button>
-              </div>
             </div>
           </div>
         </div>

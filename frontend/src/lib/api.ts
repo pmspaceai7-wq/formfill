@@ -4,6 +4,7 @@ import type {
   FormSchema,
   ProfileResponse,
   SourceSummary,
+  TemplateItem,
   TemplateListResponse,
 } from "./types";
 
@@ -12,6 +13,88 @@ function getBase(): string {
     return `${window.location.protocol}//${window.location.hostname}:8001`;
   }
   return "http://localhost:8001";
+}
+
+// ---------------------------------------------------------------------------
+// Auth helpers
+// ---------------------------------------------------------------------------
+
+interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  created_at: string;
+}
+
+interface AuthSuccess {
+  token: string;
+  user: AuthUser;
+}
+
+interface AuthError {
+  error: string;
+}
+
+function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("spacefill_token");
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getAuthToken();
+  if (!token) return {};
+  return { Authorization: `Bearer ${token}` };
+}
+
+export async function registerUser(
+  name: string,
+  email: string,
+  password: string,
+  role: string
+): Promise<AuthSuccess | AuthError> {
+  try {
+    const res = await fetch(`${getBase()}/api/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, password, role }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Registration failed" }));
+      return { error: err.detail ?? "Registration failed" };
+    }
+    return res.json();
+  } catch {
+    return { error: "Network error — is the backend running?" };
+  }
+}
+
+export async function loginUser(
+  email: string,
+  password: string
+): Promise<AuthSuccess | AuthError> {
+  try {
+    const res = await fetch(`${getBase()}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Login failed" }));
+      return { error: err.detail ?? "Login failed" };
+    }
+    return res.json();
+  } catch {
+    return { error: "Network error — is the backend running?" };
+  }
+}
+
+export async function getMe(token: string): Promise<AuthUser> {
+  const res = await fetch(`${getBase()}/api/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Not authenticated");
+  return res.json();
 }
 
 export async function uploadForm(file: File): Promise<FormSchema> {

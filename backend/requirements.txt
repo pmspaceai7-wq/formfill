@@ -18,5 +18,11 @@ phonenumbers>=8.13            # phone parsing (only for +CC numbers)
 nameparser>=1.1               # split full names into parts
 usaddress>=0.5.10             # split US addresses into components
 
+# Auth + MongoDB
+motor>=3.6                      # async MongoDB driver
+passlib[bcrypt]>=1.7            # password hashing (bcrypt)
+python-jose[cryptography]>=3.3  # JWT encode/decode
+email-validator>=2.0            # email validation for pydantic EmailStr
+
 # Tests
 pytest

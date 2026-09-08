@@ -11,7 +11,16 @@ class Settings(BaseSettings):
     FRONTEND_ORIGIN: str = "http://localhost:3000"
     MAX_UPLOAD_MB: int = 50
     FILL_MODE: str = "local"   # "local" = extract+match, "ai" = API call
-    PROFILE_ID: str = "default"   # v0 has no auth — one profile per install
+    PROFILE_ID: str = "default"   # fallback profile when no auth
+
+    # MongoDB
+    MONGODB_URI: str = ""
+    MONGODB_DB_NAME: str = "spacefill"
+
+    # JWT
+    JWT_SECRET_KEY: str = "change-me-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440   # 24 hours
 
 
 settings = Settings()
