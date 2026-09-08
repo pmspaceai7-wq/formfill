@@ -126,6 +126,10 @@ def _split_kv(line: str) -> Optional[tuple[str, str]]:
             k, _, v = line.partition(sep)
             k, v = k.strip(), v.strip()
             if k and v and len(k) <= 60:
+                # Dashes often indicate date ranges (e.g. 2021 — 2025) or bullet phrases, not KV pairs
+                if sep in (" — ", " – ", " -- "):
+                    if re.match(r"^\d{4}$", v) or len(k.split()) > 4:
+                        continue
                 return k, v
     return None
 
@@ -461,6 +465,68 @@ def extract_facts_with_provenance(
 
         # Handle text / docx / pasted content line-by-line
         lines = text.splitlines()
+
+        # Check for resume/CV header block in top 12 lines
+        header_name_found = False
+        for line_idx, raw_line in enumerate(lines[:12], start=1):
+            line = raw_line.strip()
+            if not line or line.startswith("---") or RE_NOISE_LINE.match(line):
+                continue
+
+            # Candidate name in resume header (2-4 alphabetic words)
+            if not header_name_found:
+                words = line.split()
+                if 2 <= len(words) <= 4 and all(w.replace(".", "").isalpha() for w in words):
+                    lower_l = line.lower()
+                    if not any(k in lower_l for k in ("resume", "curriculum", "profile", "skills", "experience", "education", "page", "developer", "engineer", "designer", "consultant", "summary")):
+                        _add_candidate("person.full_name", line.title(), fname, line_idx, line, 0.96, "resume_header")
+                        header_name_found = True
+                        # Check next non-empty line for job title
+                        for next_idx in range(line_idx, min(len(lines), line_idx + 3)):
+                            next_line = lines[next_idx].strip()
+                            if next_line and not next_line.startswith("---"):
+                                if not any(sep in next_line for sep in ("@", "http", ".com", "+", "·", "—", "|")) and len(next_line) <= 60:
+                                    _add_candidate("employment.job_title", next_line, fname, next_idx + 1, next_line, 0.90, "resume_title")
+                                break
+                        continue
+
+            # Contact line parsing (separated by bullets, dashes, pipes)
+            if any(sep in line for sep in ("·", "•", "|", "—", "\u2014", "\uFFFD")) or ("@" in line and any(c.isdigit() for c in line)):
+                chunks = [c.strip() for c in re.split(r'[\u2014\uFFFD·•|]', line) if c.strip()]
+                for chunk in chunks:
+                    if "@" in chunk and "." in chunk:
+                        em = _first(RE_EMAIL, chunk)
+                        if em:
+                            _add_candidate("contact.email", em, fname, line_idx, line, 0.98, "contact_line")
+                    m_phone = re.search(r'(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}|\b\d{10}\b', chunk)
+                    if m_phone and "@" not in chunk:
+                        clean_p = _clean_phone(m_phone.group(0))
+                        _add_candidate("contact.phone", clean_p, fname, line_idx, line, 0.95, "contact_line")
+                        _add_candidate("contact.mobile", clean_p, fname, line_idx, line, 0.95, "contact_line")
+                    if "," in chunk and not re.search(r'\d', chunk) and "@" not in chunk:
+                        parts = [p.strip() for p in chunk.split(",")]
+                        if len(parts) == 2 and all(p.replace(" ", "").isalpha() for p in parts):
+                            _add_candidate("address.city", parts[0].title(), fname, line_idx, line, 0.92, "contact_location")
+                            _add_candidate("address.state", parts[1].title(), fname, line_idx, line, 0.92, "contact_location")
+
+        # Education section scanning
+        for line_idx, raw_line in enumerate(lines, start=1):
+            line = raw_line.strip()
+            if not line:
+                continue
+            if line.lower() in ("education", "academics", "academic background"):
+                for offset in range(1, min(7, len(lines) - line_idx + 1)):
+                    curr = lines[line_idx - 1 + offset].strip()
+                    if not curr or curr.startswith("---") or curr.lower() in ("skills", "projects", "experience", "languages", "profile"):
+                        break
+                    curr_lower = curr.lower()
+                    if any(deg in curr_lower for deg in ("bachelor", "master", "b.tech", "m.tech", "ph.d", "phd", "b.s.", "m.s.", "degree", "diploma", "b.e.")):
+                        _add_candidate("education.degree", curr, fname, line_idx + offset, curr, 0.95, "resume_education")
+                    elif any(u in curr_lower for u in ("university", "college", "institute", "school", "academy")):
+                        clean_school = re.sub(r'\b\d{4}\b.*', '', curr).strip()
+                        clean_school = re.sub(r'[-–—]\s*$', '', clean_school).strip()
+                        _add_candidate("education.school", clean_school or curr, fname, line_idx + offset, curr, 0.95, "resume_education")
+
         for line_idx, raw_line in enumerate(lines, start=1):
             line = raw_line.strip()
             if not line or len(line) > 350 or RE_NOISE_LINE.match(line):
@@ -481,7 +547,7 @@ def extract_facts_with_provenance(
                 _add_candidate("contact.email", email, fname, line_idx, line, 0.95, "regex_email")
 
             phone = _first(RE_PHONE, line)
-            if phone and ("phone" in line.lower() or "tel" in line.lower() or "cell" in line.lower() or "mobile" in line.lower()):
+            if phone and ("phone" in line.lower() or "tel" in line.lower() or "cell" in line.lower() or "mobile" in line.lower() or line_idx <= 10 or "@" in line):
                 _add_candidate("contact.phone", _clean_phone(phone), fname, line_idx, line, 0.92, "regex_phone")
 
             ssn = _first(RE_SSN, line)

@@ -15,6 +15,14 @@ interface Props {
   citation?: FieldCitation;
   conflict?: FieldConflict;
   inference?: FieldInference;
+  sourceId?: string | null;
+  onViewSource?: (info: {
+    filename: string;
+    line?: number | null;
+    snippet?: string;
+    fieldLabel?: string;
+    value?: string;
+  }) => void;
 }
 
 export function FieldBox({
@@ -27,11 +35,30 @@ export function FieldBox({
   citation,
   conflict,
   inference,
+  sourceId,
+  onViewSource,
 }: Props) {
   const [showTip, setShowTip] = useState(false);
   const [showConflictCard, setShowConflictCard] = useState(false);
   const isReadOnly = field.read_only || field.type === "signature";
   const hasConflict = Boolean(conflict && (conflict.candidates?.length ?? 0) >= 2);
+
+  const hideTimer = useState<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleMouseEnter = () => {
+    if (hideTimer[0]) {
+      clearTimeout(hideTimer[0]);
+      hideTimer[1](null);
+    }
+    setShowTip(true);
+  };
+
+  const handleMouseLeave = () => {
+    const t = setTimeout(() => {
+      setShowTip(false);
+    }, 250);
+    hideTimer[1](t);
+  };
 
   // Visual state: conflict = amber border, user-edited = green, ai-filled = blue, empty = dashed outline
   const bg = isReadOnly
@@ -77,6 +104,9 @@ export function FieldBox({
         fieldName={field.raw_name}
         fieldLabel={field.label}
         value={value}
+        onViewSource={onViewSource}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       />
     ) : (
       <div
@@ -131,8 +161,8 @@ export function FieldBox({
   const wrap = (child: React.ReactNode) => (
     <div
       style={{ position: "relative", width: "100%", height: "100%" }}
-      onMouseEnter={() => setShowTip(true)}
-      onMouseLeave={() => setShowTip(false)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       {tip}
       {conflictBadge}

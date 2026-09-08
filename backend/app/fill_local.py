@@ -80,12 +80,26 @@ def fill_form_local(
             )
             stats = merge_facts(new_facts, source=source_label)
 
-        known = get_values()
+        # Prioritize facts extracted from the documents uploaded for this specific fill job.
+        # Fall back to saved profile ONLY if no source documents were uploaded.
+        if new_facts:
+            known = dict(new_facts)
+            # User manual corrections in the profile can supplement if not in uploaded docs
+            try:
+                doc = load_profile()
+                for k, entry in doc.get("facts", {}).items():
+                    if entry.get("user_edited") and k not in known and entry.get("value"):
+                        known[k] = entry.get("value")
+            except Exception:
+                pass
+        else:
+            known = get_values()
+
         if not known:
             _progress(0, 0, status="complete")
             write_json(jdir / "values.json", {})
             write_json(jdir / "enrichment.json", {"citations": {}, "conflicts": [], "inferences": {}})
-            logger.warning("Profile is empty — nothing to fill from")
+            logger.warning("No facts available to fill from")
             return {}
 
         available = set(known.keys())

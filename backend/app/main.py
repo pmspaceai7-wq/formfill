@@ -29,7 +29,7 @@ from app.models import (
 from app.pdf_read import NoAcroFormError, parse_form
 from app.pdf_render import render_pages, render_single_page
 from app.sources import ACCEPTED_EXTENSIONS, extract_text
-from app.storage import form_dir, source_dir, job_dir, new_id, write_json, read_json
+from app.storage import _base, form_dir, source_dir, job_dir, new_id, write_json, read_json
 from app import profile as profile_store
 
 app = FastAPI(title="FormFill API")
@@ -364,6 +364,74 @@ async def get_source(source_id: str) -> SourceSummary:
     items = [SourceItem(name=it["name"], chars=it["chars"]) for it in data["items"]]
     warnings = [SourceWarning(**w) for w in data.get("warnings", [])]
     return SourceSummary(source_id=source_id, items=items, warnings=warnings)
+
+
+# ---------------------------------------------------------------------------
+# GET /api/sources/{source_id}/file/{filename}  — serve source file content
+# ---------------------------------------------------------------------------
+
+class SourceFileResponse(BaseModel):
+    filename: str
+    lines: list[str]
+
+
+@app.get(
+    "/api/sources/{source_id}/file/{filename}",
+    response_model=SourceFileResponse,
+    responses={404: {"model": ErrorResponse}},
+)
+async def get_source_file(source_id: str, filename: str) -> SourceFileResponse:
+    """Return the lines of a source file so the UI can show it with line highlighting."""
+    import urllib.parse as _up
+    safe_name = _up.unquote(filename).strip()
+    # Prevent path traversal
+    if ".." in safe_name or "/" in safe_name or "\\" in safe_name:
+        raise HTTPException(status_code=400, detail="Invalid filename.")
+
+    def _extract_lines_from_source(sdir: Path) -> list[str] | None:
+        text_path = sdir / "text.json"
+        if text_path.exists():
+            try:
+                data = read_json(text_path)
+                for it in data.get("items", []):
+                    if it.get("name") == safe_name:
+                        return it.get("text", "").splitlines()
+            except Exception:
+                pass
+
+        file_path = sdir / "files" / safe_name
+        if file_path.exists():
+            try:
+                ext = file_path.suffix.lower()
+                if ext in (".pdf", ".docx"):
+                    extracted, _ = extract_text(file_path)
+                    return extracted.splitlines()
+                else:
+                    return file_path.read_text(encoding="utf-8", errors="replace").splitlines()
+            except Exception:
+                pass
+        return None
+
+    # 1. Try provided source_id if given
+    if source_id and source_id not in ("any", "latest", "undefined", "null", "all"):
+        lines = _extract_lines_from_source(source_dir(source_id))
+        if lines is not None:
+            return SourceFileResponse(filename=safe_name, lines=lines)
+
+    # 2. Fallback: Search all sources directories (newest first)
+    sources_dir = _base() / "sources"
+    if sources_dir.exists():
+        dirs = sorted(
+            [d for d in sources_dir.iterdir() if d.is_dir()],
+            key=lambda d: d.stat().st_mtime,
+            reverse=True,
+        )
+        for d in dirs:
+            lines = _extract_lines_from_source(d)
+            if lines is not None:
+                return SourceFileResponse(filename=safe_name, lines=lines)
+
+    raise HTTPException(status_code=404, detail=f"File '{safe_name}' not found in source archives.")
 
 
 # ---------------------------------------------------------------------------
@@ -739,7 +807,9 @@ def _build_demo_source_summary(source_id: str) -> SourceSummary:
     if combined.strip():
         try:
             names = [i["name"] for i in items_data] or [source_id]
-            stats = profile_store.merge_facts(extract_facts(combined), source=", ".join(names))
+            stats = profile_store.merge_facts(
+                extract_facts(combined), source=", ".join(names), profile_id="demo"
+            )
             facts_learned = stats["changed"]
             facts_total = stats["total"]
         except Exception:

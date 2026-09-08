@@ -34,6 +34,15 @@ def extract_text(path: Path) -> tuple[str, Optional[str]]:
 
 
 def _extract_pdf(path: Path) -> tuple[str, Optional[str]]:
+    # 1. Check for password protection / encryption
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(str(path))
+        if reader.is_encrypted:
+            return "", "PDF is password-protected. Please unlock or print-to-PDF without password before uploading."
+    except Exception:
+        pass
+
     pages: list[str] = []
     try:
         with pdfplumber.open(str(path)) as pdf:
@@ -41,7 +50,10 @@ def _extract_pdf(path: Path) -> tuple[str, Optional[str]]:
                 text = page.extract_text() or ""
                 pages.append(f"--- page {i} ---\n\n{text.strip()}")
     except Exception as exc:
-        return "", f"Could not read PDF: {exc}"
+        err_msg = str(exc).strip()
+        if not err_msg:
+            err_msg = type(exc).__name__
+        return "", f"Could not read PDF ({err_msg})"
 
     full = "\n\n".join(pages).strip()
     if len(full) < 50:

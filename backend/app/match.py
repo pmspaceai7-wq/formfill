@@ -85,11 +85,22 @@ def clean_label(raw: str) -> str:
     Strip the boilerplate that real government forms bury the useful words in.
 
     "Part 1. Petitioner Information. 3. Mailing Address... Street Number and Name"
-        -> "mailing address street number and name"
+        -> "street number and name"
     """
     if not raw:
         return ""
     s = raw.strip()
+
+    # Extract target prompt sentence if buried in long multi-sentence instructions
+    sentences = [sent.strip() for sent in re.split(r'\.\s+', s) if sent.strip()]
+    if len(sentences) > 1:
+        for sent in reversed(sentences):
+            clean_sent = _RE_ITEM_NUMBER.sub("", sent).strip()
+            m = re.match(r'^(enter|provide|select|check|choose)\s+(.*)', clean_sent, re.I)
+            if m and len(m.group(2).split()) <= 10:
+                s = m.group(2).strip()
+                break
+
     # Drop leading "Part 1. Petitioner Information." style preamble, repeatedly.
     for _ in range(3):
         new = _RE_PART_PREFIX.sub("", s)

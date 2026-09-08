@@ -14,6 +14,14 @@ interface Props {
   citations?: Record<string, FieldCitation>;
   conflicts?: Record<string, FieldConflict>;
   inferences?: Record<string, FieldInference>;
+  sourceId?: string | null;
+  onViewSource?: (info: {
+    filename: string;
+    line?: number | null;
+    snippet?: string;
+    fieldLabel?: string;
+    value?: string;
+  }) => void;
 }
 
 export function FieldOverlay({
@@ -27,6 +35,8 @@ export function FieldOverlay({
   citations = {},
   conflicts = {},
   inferences = {},
+  sourceId,
+  onViewSource,
 }: Props) {
   return (
     <div style={{ position: "absolute", top: 0, left: 0, width: renderedWidth, height: renderedHeight, zIndex: 10 }}>
@@ -49,6 +59,8 @@ export function FieldOverlay({
               citation={citations[field.field_id]}
               conflict={conflicts[field.field_id]}
               inference={inferences[field.field_id]}
+              sourceId={sourceId}
+              onViewSource={onViewSource}
             />
           </div>
         );

@@ -11,6 +11,7 @@ import { FieldOverlay } from "@/components/FieldOverlay";
 import { SourcePanel } from "@/components/SourcePanel";
 import { ProfileDrawer } from "@/components/ProfileDrawer";
 import { TemplatesModal } from "@/components/TemplatesModal";
+import { SourceFileViewerModal } from "@/components/SourceFileViewerModal";
 import { useFillJob } from "@/hooks/useFillJob";
 import { AlertCircleIcon, RefreshCwIcon } from "@/components/Icons";
 
@@ -35,6 +36,15 @@ export default function Home() {
   const [sourceId, setSourceId] = useState<string | null>(null);
   const [sourceSummary, setSourceSummary] = useState<SourceSummary | null>(null);
   const [downloading, setDownloading] = useState(false);
+
+  // Source File Viewer Modal
+  const [sourceViewer, setSourceViewer] = useState<{
+    filename: string;
+    line?: number | null;
+    snippet?: string;
+    fieldLabel?: string;
+    value?: string;
+  } | null>(null);
 
   // Profile — details remembered across forms
   const [profileOpen, setProfileOpen] = useState(false);
@@ -315,6 +325,19 @@ export default function Home() {
         onChanged={setFactCount}
       />
 
+      {sourceViewer && (
+        <SourceFileViewerModal
+          isOpen={Boolean(sourceViewer)}
+          onClose={() => setSourceViewer(null)}
+          sourceId={sourceId}
+          filename={sourceViewer.filename}
+          targetLine={sourceViewer.line}
+          snippet={sourceViewer.snippet}
+          fieldLabel={sourceViewer.fieldLabel}
+          value={sourceViewer.value}
+        />
+      )}
+
       {/* Main Body */}
       {state === "empty" || state === "uploading" ? (
         <HeroUpload
@@ -414,6 +437,8 @@ export default function Home() {
                     citations={fillJob.citations ?? {}}
                     conflicts={conflictsMap}
                     inferences={fillJob.inferences ?? {}}
+                    sourceId={sourceId}
+                    onViewSource={setSourceViewer}
                   />
                 )}
               </div>

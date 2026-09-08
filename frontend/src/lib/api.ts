@@ -56,6 +56,18 @@ export async function getSource(sourceId: string): Promise<SourceSummary> {
   return res.json();
 }
 
+export async function getSourceFile(
+  sourceId: string | undefined | null,
+  filename: string
+): Promise<{ filename: string; lines: string[] }> {
+  const sid = sourceId && sourceId.trim() ? sourceId : "any";
+  const res = await fetch(
+    `${getBase()}/api/sources/${encodeURIComponent(sid)}/file/${encodeURIComponent(filename)}`
+  );
+  if (!res.ok) throw new Error("File not found");
+  return res.json();
+}
+
 export async function startFill(formId: string, sourceId: string): Promise<FillStatus> {
   const body = new FormData();
   body.append("form_id", formId);
