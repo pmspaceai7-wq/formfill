@@ -32,7 +32,7 @@ from app.pdf_render import render_pages, render_single_page
 from app.sources import ACCEPTED_EXTENSIONS, extract_text
 from app.storage import _base, form_dir, source_dir, job_dir, new_id, write_json, read_json
 from app import profile as profile_store
-from app.auth import auth_router, connect_db, close_db
+from app.auth import auth_router, admin_router, connect_db, close_db
 
 
 @asynccontextmanager
@@ -46,6 +46,7 @@ async def lifespan(application: FastAPI):
 app = FastAPI(title="FormFill API", lifespan=lifespan)
 
 app.include_router(auth_router)
+app.include_router(admin_router)
 
 app.add_middleware(
     CORSMiddleware,

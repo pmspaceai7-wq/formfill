@@ -20,7 +20,7 @@ usaddress>=0.5.10             # split US addresses into components
 
 # Auth + MongoDB
 motor>=3.6                      # async MongoDB driver
-passlib[bcrypt]>=1.7            # password hashing (bcrypt)
+bcrypt>=4.0                     # password hashing
 python-jose[cryptography]>=3.3  # JWT encode/decode
 email-validator>=2.0            # email validation for pydantic EmailStr
 

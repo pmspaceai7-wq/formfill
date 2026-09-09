@@ -1,23 +1,16 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { registerUser, loginUser, getMe } from "./api";
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  created_at: string;
-}
+import { loginUser, registerUser, getMe, type NewUserInput } from "./api";
+import type { AuthUser } from "./types";
 
 interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   token: string | null;
   loading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, role: string) => Promise<void>;
+  register: (input: NewUserInput) => Promise<void>;
   logout: () => void;
   clearError: () => void;
 }
@@ -27,7 +20,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 const TOKEN_KEY = "spacefill_token";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,20 +57,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(res.user);
   }, []);
 
-  const register = useCallback(
-    async (name: string, email: string, password: string, role: string) => {
-      setError(null);
-      const res = await registerUser(name, email, password, role);
-      if ("error" in res) {
-        setError(res.error);
-        throw new Error(res.error);
-      }
-      localStorage.setItem(TOKEN_KEY, res.token);
-      setToken(res.token);
-      setUser(res.user);
-    },
-    []
-  );
+  const register = useCallback(async (input: NewUserInput) => {
+    setError(null);
+    const res = await registerUser(input);
+    if ("error" in res) {
+      setError(res.error);
+      throw new Error(res.error);
+    }
+    localStorage.setItem(TOKEN_KEY, res.token);
+    setToken(res.token);
+    setUser(res.user);
+  }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);

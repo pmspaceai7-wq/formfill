@@ -1,3 +1,16 @@
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  role: "admin" | "user";
+  status: "active" | "disabled";
+  country: string;
+  phone: string;
+  company: string;
+  created_at: string;
+  last_login_at: string | null;
+}
+
 export type FieldType =
   | "text"
   | "multiline_text"

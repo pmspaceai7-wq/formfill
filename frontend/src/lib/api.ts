@@ -1,4 +1,5 @@
 import type {
+  AuthUser,
   DemoLoadResponse,
   FillStatus,
   FormSchema,
@@ -18,14 +19,6 @@ function getBase(): string {
 // ---------------------------------------------------------------------------
 // Auth helpers
 // ---------------------------------------------------------------------------
-
-interface AuthUser {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  created_at: string;
-}
 
 interface AuthSuccess {
   token: string;
@@ -47,28 +40,6 @@ function authHeaders(): Record<string, string> {
   return { Authorization: `Bearer ${token}` };
 }
 
-export async function registerUser(
-  name: string,
-  email: string,
-  password: string,
-  role: string
-): Promise<AuthSuccess | AuthError> {
-  try {
-    const res = await fetch(`${getBase()}/api/auth/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password, role }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Registration failed" }));
-      return { error: err.detail ?? "Registration failed" };
-    }
-    return res.json();
-  } catch {
-    return { error: "Network error — is the backend running?" };
-  }
-}
-
 export async function loginUser(
   email: string,
   password: string
@@ -82,6 +53,25 @@ export async function loginUser(
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Login failed" }));
       return { error: err.detail ?? "Login failed" };
+    }
+    return res.json();
+  } catch {
+    return { error: "Network error — is the backend running?" };
+  }
+}
+
+export async function registerUser(
+  input: NewUserInput
+): Promise<AuthSuccess | AuthError> {
+  try {
+    const res = await fetch(`${getBase()}/api/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Registration failed" }));
+      return { error: err.detail ?? "Registration failed" };
     }
     return res.json();
   } catch {
@@ -241,5 +231,65 @@ export async function loadTemplateById(templateId: string): Promise<FormSchema> 
     throw new Error(err.detail ?? "Failed to load template");
   }
   return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Admin — user management (admin-only, JWT required)
+// ---------------------------------------------------------------------------
+
+export interface NewUserInput {
+  name: string;
+  email: string;
+  password: string;
+  country: string;
+  phone: string;
+  company?: string;
+}
+
+export interface UpdateUserInput {
+  status?: "active" | "disabled";
+  country?: string;
+  phone?: string;
+  company?: string;
+  password?: string;
+}
+
+async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${getBase()}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+      ...(init?.headers ?? {}),
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Request failed" }));
+    throw new Error(err.detail ?? "Request failed");
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json();
+}
+
+export function adminListUsers(): Promise<AuthUser[]> {
+  return adminRequest<AuthUser[]>("/api/admin/users");
+}
+
+export function adminCreateUser(input: NewUserInput): Promise<AuthUser> {
+  return adminRequest<AuthUser>("/api/admin/users", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function adminUpdateUser(userId: string, input: UpdateUserInput): Promise<AuthUser> {
+  return adminRequest<AuthUser>(`/api/admin/users/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function adminDeleteUser(userId: string): Promise<void> {
+  return adminRequest<void>(`/api/admin/users/${userId}`, { method: "DELETE" });
 }
 
