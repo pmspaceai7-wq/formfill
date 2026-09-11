@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import {
   FileTextIcon,
   ShieldCheckIcon,
-  ZapIcon,
   AlertCircleIcon,
   EyeIcon,
   EyeOffIcon,
@@ -371,19 +370,8 @@ export function Navbar({
           </button>
         </nav>
 
-        {/* Right side CTAs: Try Demo, Sign in & Get Started */}
+        {/* Right side CTAs: Sign in & Get Started */}
         <div className="flex items-center gap-2.5 flex-shrink-0">
-          {onLoadDemo && !hasForm && (
-            <button
-              onClick={onLoadDemo}
-              disabled={loadingDemo}
-              className="hidden sm:flex px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 bg-amber-950/70 hover:bg-amber-900/70 border border-amber-600/60 transition-all items-center gap-1.5 cursor-pointer shadow-xs hover:scale-[1.02] disabled:opacity-50"
-            >
-              <ZapIcon size={12} className="text-amber-400" />
-              <span>{loadingDemo ? "Loading Demo…" : "⚡ Try Demo"}</span>
-            </button>
-          )}
-
           {user ? (
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700/80 text-xs text-slate-200 shadow-xs">
