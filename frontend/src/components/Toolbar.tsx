@@ -13,6 +13,7 @@ import {
   AlertCircleIcon,
   RefreshCwIcon,
   FileTextIcon,
+  ShieldCheckIcon,
 } from "./Icons";
 
 interface Props {
@@ -43,6 +44,14 @@ interface Props {
   onResetForm?: () => void;
   conflictCount?: number;
   onNextConflict?: () => void;
+  isQuotaExceeded?: boolean;
+  onOpenUpgrade?: () => void;
+  quotaRemaining?: number | null;
+  isSubscribed?: boolean;
+  onOpenAudit?: () => void;
+  onSaveSubmission?: () => void;
+  isSaving?: boolean;
+  isSaved?: boolean;
 }
 
 export function Toolbar({
@@ -71,6 +80,14 @@ export function Toolbar({
   onResetForm,
   conflictCount = 0,
   onNextConflict,
+  isQuotaExceeded = false,
+  onOpenUpgrade,
+  quotaRemaining,
+  isSubscribed = false,
+  onOpenAudit,
+  onSaveSubmission,
+  isSaving = false,
+  isSaved = false,
 }: Props) {
   const emptyCount = Math.max(0, fieldCount - filledCount);
   const pct = fillTotal > 0 ? Math.round((fillDone / fillTotal) * 100) : 0;
@@ -175,20 +192,67 @@ export function Toolbar({
 
         {/* Action Buttons (Fill & Download) */}
         <div className="flex items-center gap-2.5 flex-shrink-0 ml-auto xl:ml-0">
+          {/* Quota Badge Indicator */}
+          {isSubscribed ? (
+            <span className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              <span>Pro Unlimited</span>
+            </span>
+          ) : quotaRemaining !== null && quotaRemaining !== undefined ? (
+            <button
+              onClick={onOpenUpgrade}
+              className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-all cursor-pointer shadow-2xs ${
+                quotaRemaining > 0
+                  ? "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+                  : "bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100"
+              }`}
+              title={
+                quotaRemaining > 0
+                  ? "1 free form filling remaining on your business account"
+                  : "Free quota used. Click to upgrade."
+              }
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  quotaRemaining > 0 ? "bg-blue-500 animate-pulse" : "bg-amber-500"
+                }`}
+              />
+              <span>{quotaRemaining > 0 ? "1 Free Fill Left" : "0 Free Fills Left • Upgrade"}</span>
+            </button>
+          ) : null}
+
           {/* Fill Button / State */}
           {fillStatus === "error" ? (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-red-600 font-medium flex items-center gap-1">
-                <AlertCircleIcon size={13} />
-                <span>{fillError || "Fill failed"}</span>
-              </span>
-              <button
-                onClick={onFillRetry}
-                className="px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+              <span
+                className={`text-xs font-medium flex items-center gap-1.5 px-2.5 py-1 rounded-xl border ${
+                  isQuotaExceeded
+                    ? "text-amber-800 bg-amber-50 border-amber-200"
+                    : "text-red-600 bg-red-50 border-red-200"
+                }`}
               >
-                <RefreshCwIcon size={12} />
-                Retry
-              </button>
+                <AlertCircleIcon
+                  size={13}
+                  className={isQuotaExceeded ? "text-amber-600" : "text-red-500"}
+                />
+                <span className="max-w-[200px] truncate">{fillError || "Fill failed"}</span>
+              </span>
+              {isQuotaExceeded ? (
+                <button
+                  onClick={onOpenUpgrade}
+                  className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+                >
+                  Upgrade
+                </button>
+              ) : (
+                <button
+                  onClick={onFillRetry}
+                  className="px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+                >
+                  <RefreshCwIcon size={12} />
+                  Retry
+                </button>
+              )}
             </div>
           ) : fillStatus === "running" ? (
             <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold shadow-sm">
@@ -214,6 +278,35 @@ export function Toolbar({
             >
               <SparklesIcon size={14} />
               <span>{hasProfileOnly ? "Fill from Profile" : "Auto-Fill Form"}</span>
+            </button>
+          )}
+
+          {/* Audit Trail Button */}
+          {filledCount > 0 && onOpenAudit && (
+            <button
+              onClick={onOpenAudit}
+              className="hidden lg:flex px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+              title="View compliance audit trail, provenance map & export CSV / 1-page PDF"
+            >
+              <ShieldCheckIcon size={13} className="text-blue-600" />
+              <span>Audit Trail</span>
+            </button>
+          )}
+
+          {/* Save Submission Button */}
+          {filledCount > 0 && onSaveSubmission && (
+            <button
+              onClick={onSaveSubmission}
+              disabled={isSaving}
+              className={`hidden sm:flex px-3 py-1.5 rounded-xl text-xs font-semibold items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+                isSaved
+                  ? "bg-slate-100 text-slate-600 border border-slate-200"
+                  : "bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200"
+              }`}
+              title={isSaved ? "Saved to My Forms" : "Save this filled form session to My Forms"}
+            >
+              <FileTextIcon size={13} className={isSaved ? "text-slate-400" : "text-blue-600"} />
+              <span>{isSaving ? "Saving…" : isSaved ? "✓ Saved" : "Save Session"}</span>
             </button>
           )}
 

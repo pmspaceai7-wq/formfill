@@ -13,6 +13,7 @@ export type FillJobState = {
   conflicts: FieldConflict[];
   inferences: Record<string, FieldInference>;
   error: string;
+  isQuotaExceeded?: boolean;
 };
 
 export function useFillJob() {
@@ -25,6 +26,7 @@ export function useFillJob() {
     conflicts: [],
     inferences: {},
     error: "",
+    isQuotaExceeded: false,
   });
   const jobIdRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -54,11 +56,12 @@ export function useFillJob() {
           conflicts: data.conflicts ?? [],
           inferences: data.inferences ?? {},
           error: "",
+          isQuotaExceeded: false,
         });
       } else if (data.status === "error") {
         setState(s => ({ ...s, status: "error", error: data.error || "Fill failed" }));
       } else {
-        setState(s => ({ ...s, status: "running", done: data.done, total: data.total }));
+        setState(s => ({ ...s, status: "running", done: data.done, total: data.total, isQuotaExceeded: false }));
         timerRef.current = setTimeout(() => poll(jobId), 1500);
       }
     } catch (e) {
@@ -83,11 +86,16 @@ export function useFillJob() {
       const job = await startFill(formId, sourceId);
       jobIdRef.current = job.job_id;
       timerRef.current = setTimeout(() => poll(job.job_id), 1000);
-    } catch (e) {
+    } catch (e: unknown) {
+      const isQuota =
+        (e as { status?: number })?.status === 402 ||
+        (e instanceof Error &&
+          (e.message.includes("free form filling") || e.message.includes("Upgrade your plan")));
       setState((s) => ({
         ...s,
         status: "error",
         error: e instanceof Error ? e.message : "Start failed",
+        isQuotaExceeded: isQuota,
       }));
     }
   }, [poll]);
@@ -103,6 +111,7 @@ export function useFillJob() {
       conflicts: [],
       inferences: {},
       error: "",
+      isQuotaExceeded: false,
     });
     jobIdRef.current = null;
   }, []);

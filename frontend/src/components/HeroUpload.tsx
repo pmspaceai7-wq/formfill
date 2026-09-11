@@ -16,6 +16,8 @@ interface Props {
   isLoading: boolean;
   error?: string;
   onClearError?: () => void;
+  isLoggedIn?: boolean;
+  onRequireAuth?: () => void;
 }
 
 interface FaqItem {
@@ -62,6 +64,8 @@ export function HeroUpload({
   isLoading,
   error,
   onClearError,
+  isLoggedIn = false,
+  onRequireAuth,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -90,6 +94,10 @@ export function HeroUpload({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
+    if (!isLoggedIn && onRequireAuth) {
+      onRequireAuth();
+      return;
+    }
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       onFileSelected(e.dataTransfer.files[0]);
     }
@@ -194,7 +202,13 @@ export function HeroUpload({
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => {
+                if (!isLoggedIn && onRequireAuth) {
+                  onRequireAuth();
+                  return;
+                }
+                fileInputRef.current?.click();
+              }}
               className={`relative group rounded-2xl border-2 border-dashed transition-all duration-300 p-8 sm:p-9 text-center cursor-pointer bg-white/90 backdrop-blur-sm shadow-sm ${
                 isDragging
                   ? "border-blue-500 bg-blue-50/60 scale-[1.02] shadow-xl shadow-blue-500/15 ring-4 ring-blue-500/10"
@@ -208,6 +222,10 @@ export function HeroUpload({
                 className="hidden"
                 onChange={(e) => {
                   if (e.target.files && e.target.files[0]) {
+                    if (!isLoggedIn && onRequireAuth) {
+                      onRequireAuth();
+                      return;
+                    }
                     onFileSelected(e.target.files[0]);
                   }
                 }}

@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pdfplumber
-from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -32,7 +32,15 @@ from app.pdf_render import render_pages, render_single_page
 from app.sources import ACCEPTED_EXTENSIONS, extract_text
 from app.storage import _base, form_dir, source_dir, job_dir, new_id, write_json, read_json
 from app import profile as profile_store
-from app.auth import auth_router, admin_router, connect_db, close_db
+from app.auth import (
+    auth_router,
+    admin_router,
+    connect_db,
+    close_db,
+    get_current_user,
+    increment_user_form_fill,
+)
+from app.submissions import submissions_router
 
 
 @asynccontextmanager
@@ -47,6 +55,7 @@ app = FastAPI(title="FormFill API", lifespan=lifespan)
 
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(submissions_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -131,9 +140,18 @@ async def health() -> HealthResponse:
 @app.post(
     "/api/forms",
     response_model=FormSchema,
-    responses={400: {"model": ErrorResponse}},
+    responses={400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}},
 )
-async def upload_form(file: UploadFile) -> FormSchema:
+async def upload_form(
+    file: UploadFile,
+    current_user: Optional[dict] = Depends(get_current_user),
+) -> FormSchema:
+    if not current_user:
+        raise HTTPException(
+            status_code=401,
+            detail="Please sign in with your business email to upload forms.",
+        )
+
     # 1. Check magic bytes (%PDF)
     header = await file.read(4)
     if header != b"%PDF":
@@ -485,13 +503,38 @@ def _run_fill(job_id: str, form_id: str, source_id: str) -> None:
 @app.post(
     "/api/fill",
     response_model=FillStatus,
-    responses={400: {"model": ErrorResponse}},
+    responses={
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        402: {"model": ErrorResponse},
+    },
 )
 async def start_fill(
     background_tasks: BackgroundTasks,
     form_id: str = Form(...),
     source_id: str = Form(default=""),
+    current_user: Optional[dict] = Depends(get_current_user),
 ) -> FillStatus:
+    # 1. Require authentication to track quota per business email
+    if not current_user:
+        raise HTTPException(
+            status_code=401,
+            detail="Please sign in with your business email to claim your 1 free form filling.",
+        )
+
+    # 2. Check quota: 1 free form filling per business email
+    # Admins and subscribed users receive unlimited fills
+    is_admin = current_user.get("role") == "admin"
+    is_sub = current_user.get("is_subscribed", False)
+    count = current_user.get("forms_filled_count", 0)
+    limit = current_user.get("free_tier_limit", 1)
+
+    if not is_admin and not is_sub and count >= limit:
+        raise HTTPException(
+            status_code=402,
+            detail=f"You have used your {limit} free form filling. Upgrade your plan to continue filling forms.",
+        )
+
     # Validate form exists
     if not (form_dir(form_id) / "schema.json").exists():
         raise HTTPException(status_code=400, detail="Form not found.")
@@ -513,6 +556,10 @@ async def start_fill(
     write_json(jdir / "status.json", {
         "status": "running", "done": 0, "total": 0, "error": "",
     })
+
+    # Increment quota usage for business accounts
+    if not is_admin:
+        await increment_user_form_fill(current_user["email"])
 
     background_tasks.add_task(_run_fill, job_id, form_id, source_id)
 

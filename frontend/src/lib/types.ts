@@ -7,6 +7,9 @@ export interface AuthUser {
   country: string;
   phone: string;
   company: string;
+  forms_filled_count?: number;
+  free_tier_limit?: number;
+  is_subscribed?: boolean;
   created_at: string;
   last_login_at: string | null;
 }
@@ -177,5 +180,74 @@ export interface DemoLoadResponse {
   schema: FormSchema;
   source: SourceSummary;
 }
+
+export interface SubmissionSummary {
+  id: string;
+  form_id: string;
+  filename: string;
+  title: string;
+  user_email: string;
+  status: "draft" | "filled" | "exported";
+  fields_filled: number;
+  fields_total: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubmissionListResponse {
+  submissions: SubmissionSummary[];
+  total: number;
+}
+
+export interface SubmissionDetail {
+  id: string;
+  form_id: string;
+  filename: string;
+  title: string;
+  user_email: string;
+  status: "draft" | "filled" | "exported";
+  fields_filled: number;
+  fields_total: number;
+  created_at: string;
+  updated_at: string;
+  values: Record<string, string>;
+  citations: Record<string, FieldCitation>;
+  conflicts: FieldConflict[];
+  inferences: Record<string, FieldInference>;
+  source_id?: string | null;
+}
+
+export interface SaveSubmissionRequest {
+  form_id: string;
+  filename: string;
+  title?: string;
+  values: Record<string, string>;
+  citations?: Record<string, FieldCitation>;
+  conflicts?: FieldConflict[];
+  inferences?: Record<string, FieldInference>;
+  source_id?: string | null;
+  status?: "draft" | "filled" | "exported";
+  submission_id?: string;
+}
+
+export interface UpdateSubmissionRequest {
+  title?: string;
+  values?: Record<string, string>;
+  status?: "draft" | "filled" | "exported";
+}
+
+export interface AuditEntry {
+  field_id: string;
+  field_label: string;
+  page: number;
+  value: string;
+  source_file: string;
+  line_number?: number | null;
+  snippet: string;
+  confidence: number;
+  method: string;
+  conflict_status: "Clear" | "Resolved";
+}
+
 
 

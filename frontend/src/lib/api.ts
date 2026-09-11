@@ -7,6 +7,11 @@ import type {
   SourceSummary,
   TemplateItem,
   TemplateListResponse,
+  SubmissionSummary,
+  SubmissionListResponse,
+  SubmissionDetail,
+  SaveSubmissionRequest,
+  UpdateSubmissionRequest,
 } from "./types";
 
 function getBase(): string {
@@ -90,7 +95,11 @@ export async function getMe(token: string): Promise<AuthUser> {
 export async function uploadForm(file: File): Promise<FormSchema> {
   const body = new FormData();
   body.append("file", file);
-  const res = await fetch(`${getBase()}/api/forms`, { method: "POST", body });
+  const res = await fetch(`${getBase()}/api/forms`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+    body,
+  });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "Upload failed" }));
     throw new Error(err.error ?? err.detail ?? "Upload failed");
@@ -145,10 +154,36 @@ export async function startFill(formId: string, sourceId: string): Promise<FillS
   const body = new FormData();
   body.append("form_id", formId);
   body.append("source_id", sourceId);
-  const res = await fetch(`${getBase()}/api/fill`, { method: "POST", body });
+  const res = await fetch(`${getBase()}/api/fill`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+    body,
+  });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Failed to start fill" }));
-    throw new Error(err.detail ?? "Failed to start fill");
+    const errorObj = new Error(err.detail ?? "Failed to start fill");
+    (errorObj as unknown as { status?: number }).status = res.status;
+    throw errorObj;
+  }
+  return res.json();
+}
+
+export async function simulateUpgrade(
+  is_subscribed: boolean = true,
+  reset_count: boolean = false
+): Promise<AuthUser> {
+  const token = getAuthToken();
+  const res = await fetch(`${getBase()}/api/auth/simulate-upgrade`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ is_subscribed, reset_count }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to simulate upgrade" }));
+    throw new Error(err.detail ?? "Failed to simulate upgrade");
   }
   return res.json();
 }
@@ -292,4 +327,98 @@ export function adminUpdateUser(userId: string, input: UpdateUserInput): Promise
 export function adminDeleteUser(userId: string): Promise<void> {
   return adminRequest<void>(`/api/admin/users/${userId}`, { method: "DELETE" });
 }
+
+// ---------------------------------------------------------------------------
+// Submissions & Legal Audit Trail
+// ---------------------------------------------------------------------------
+
+export async function listSubmissions(): Promise<SubmissionSummary[]> {
+  const res = await fetch(`${getBase()}/api/submissions`, {
+    headers: { ...authHeaders() },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to list submissions" }));
+    throw new Error(err.detail ?? "Failed to list submissions");
+  }
+  const data: SubmissionListResponse = await res.json();
+  return data.submissions;
+}
+
+export async function saveSubmission(payload: SaveSubmissionRequest): Promise<SubmissionDetail> {
+  const res = await fetch(`${getBase()}/api/submissions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to save submission" }));
+    throw new Error(err.detail ?? "Failed to save submission");
+  }
+  return res.json();
+}
+
+export async function getSubmission(id: string): Promise<SubmissionDetail> {
+  const res = await fetch(`${getBase()}/api/submissions/${id}`, {
+    headers: { ...authHeaders() },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to fetch submission" }));
+    throw new Error(err.detail ?? "Failed to fetch submission");
+  }
+  return res.json();
+}
+
+export async function updateSubmission(id: string, payload: UpdateSubmissionRequest): Promise<SubmissionDetail> {
+  const res = await fetch(`${getBase()}/api/submissions/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to update submission" }));
+    throw new Error(err.detail ?? "Failed to update submission");
+  }
+  return res.json();
+}
+
+export async function deleteSubmission(id: string): Promise<void> {
+  const res = await fetch(`${getBase()}/api/submissions/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to delete submission" }));
+    throw new Error(err.detail ?? "Failed to delete submission");
+  }
+}
+
+export async function exportSubmissionPdf(id: string): Promise<Blob> {
+  const res = await fetch(`${getBase()}/api/submissions/${id}/export`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to export PDF" }));
+    throw new Error(err.detail ?? "Failed to export PDF");
+  }
+  return res.blob();
+}
+
+export async function downloadAuditCsv(id: string): Promise<Blob> {
+  const res = await fetch(`${getBase()}/api/submissions/${id}/audit/csv`, {
+    headers: { ...authHeaders() },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to download audit CSV" }));
+    throw new Error(err.detail ?? "Failed to download audit CSV");
+  }
+  return res.blob();
+}
+
 

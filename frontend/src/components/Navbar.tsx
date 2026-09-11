@@ -2,6 +2,7 @@
 
 import React, { useState, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   FileTextIcon,
   ShieldCheckIcon,
@@ -22,6 +23,8 @@ interface Props {
   onLoadTemplate?: (templateId: string) => Promise<void>;
   loadingDemo?: boolean;
   loadingTemplateId?: string | null;
+  authModalOpen?: "login" | "signup" | null;
+  onAuthModalClose?: () => void;
 }
 
 interface ServiceItem {
@@ -76,8 +79,19 @@ export function Navbar({
   onLoadTemplate,
   loadingDemo,
   loadingTemplateId,
+  authModalOpen,
+  onAuthModalClose,
 }: Props) {
   const { user, login, register, logout } = useAuth();
+  const router = useRouter();
+
+  const handleSignOut = () => {
+    logout();
+    if (onReset) {
+      onReset();
+    }
+    router.push("/");
+  };
 
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
@@ -86,6 +100,17 @@ export function Navbar({
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showSignUpModal, setShowSignUpModal] = useState(false);
   const [showTemplatesModal, setShowTemplatesModal] = useState(false);
+
+  // Sync external auth modal triggers (e.g. upload attempted while logged out)
+  React.useEffect(() => {
+    if (authModalOpen === "login") {
+      setShowLoginModal(true);
+      setShowSignUpModal(false);
+    } else if (authModalOpen === "signup") {
+      setShowSignUpModal(true);
+      setShowLoginModal(false);
+    }
+  }, [authModalOpen]);
 
   // Login Form State
   const [loginEmail, setLoginEmail] = useState("");
@@ -375,6 +400,15 @@ export function Navbar({
                 </div>
               </div>
 
+              <Link
+                href="/history"
+                className="px-3 py-1.5 rounded-xl text-xs font-semibold text-blue-300 bg-blue-950/60 hover:bg-blue-900/60 border border-blue-700/60 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                title="View your saved forms, past submissions, and legal audit reports"
+              >
+                <FileTextIcon size={13} className="text-blue-400" />
+                <span>My Forms</span>
+              </Link>
+
               {user.role === "admin" && (
                 <Link
                   href="/admin"
@@ -396,7 +430,7 @@ export function Navbar({
               )}
 
               <button
-                onClick={logout}
+                onClick={handleSignOut}
                 className="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:text-red-400 hover:bg-slate-900 border border-slate-800 hover:border-red-900/50 transition-colors cursor-pointer"
               >
                 Sign out
@@ -439,10 +473,18 @@ export function Navbar({
         onClose={() => setShowTemplatesModal(false)}
         onLoadDemo={async () => {
           setShowTemplatesModal(false);
+          if (!user) {
+            setShowSignUpModal(true);
+            return;
+          }
           if (onLoadDemo) await onLoadDemo();
         }}
         onLoadTemplate={async (id) => {
           setShowTemplatesModal(false);
+          if (!user) {
+            setShowSignUpModal(true);
+            return;
+          }
           if (onLoadTemplate) await onLoadTemplate(id);
         }}
         loadingDemo={loadingDemo}
@@ -727,7 +769,10 @@ export function Navbar({
       {/* 6. Login Modal */}
       {showLoginModal && (
         <div
-          onClick={() => setShowLoginModal(false)}
+          onClick={() => {
+            setShowLoginModal(false);
+            if (onAuthModalClose) onAuthModalClose();
+          }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200"
         >
           <div
@@ -742,7 +787,10 @@ export function Navbar({
                 <span className="font-bold text-white text-sm">SpaceFill</span>
               </div>
               <button
-                onClick={() => setShowLoginModal(false)}
+                onClick={() => {
+                  setShowLoginModal(false);
+                  if (onAuthModalClose) onAuthModalClose();
+                }}
                 className="text-slate-400 hover:text-white text-sm font-bold cursor-pointer"
               >
                 ✕
@@ -825,7 +873,10 @@ export function Navbar({
       {/* 7. Sign Up Modal */}
       {showSignUpModal && (
         <div
-          onClick={() => setShowSignUpModal(false)}
+          onClick={() => {
+            setShowSignUpModal(false);
+            if (onAuthModalClose) onAuthModalClose();
+          }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200"
         >
           <div
@@ -843,7 +894,10 @@ export function Navbar({
                 </div>
               </div>
               <button
-                onClick={() => setShowSignUpModal(false)}
+                onClick={() => {
+                  setShowSignUpModal(false);
+                  if (onAuthModalClose) onAuthModalClose();
+                }}
                 className="text-slate-400 hover:text-white text-sm font-bold cursor-pointer p-1"
               >
                 ✕

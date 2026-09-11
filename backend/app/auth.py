@@ -47,6 +47,8 @@ async def connect_db() -> None:
     _client = AsyncIOMotorClient(settings.MONGODB_URI)
     _db = _client[settings.MONGODB_DB_NAME]
     await _db.users.create_index("email", unique=True)
+    await _db.submissions.create_index("id", unique=True)
+    await _db.submissions.create_index([("user_email", 1), ("updated_at", -1)])
     log.info("MongoDB connected -> %s", settings.MONGODB_DB_NAME)
     await ensure_admin_user()
 
@@ -100,6 +102,9 @@ async def ensure_admin_user() -> None:
                 "country": "",
                 "phone": "",
                 "company": "",
+                "forms_filled_count": 0,
+                "free_tier_limit": 999999,
+                "is_subscribed": True,
             },
             "$setOnInsert": {"created_at": now, "created_by": "system"},
         },
@@ -171,9 +176,25 @@ def _serialize_user(user: dict) -> dict:
         "country": user.get("country", ""),
         "phone": user.get("phone", ""),
         "company": user.get("company", ""),
+        "forms_filled_count": user.get("forms_filled_count", 0),
+        "free_tier_limit": user.get("free_tier_limit", 1),
+        "is_subscribed": user.get("is_subscribed", False),
         "created_at": user.get("created_at", ""),
         "last_login_at": user.get("last_login_at"),
     }
+
+
+async def increment_user_form_fill(email: str) -> int:
+    """Atomically increment the user's filled forms count in MongoDB and return new count."""
+    db = get_db()
+    res = await db.users.find_one_and_update(
+        {"email": email.strip().lower()},
+        {"$inc": {"forms_filled_count": 1}},
+        return_document=True,
+    )
+    if res:
+        return res.get("forms_filled_count", 1)
+    return 1
 
 
 async def get_current_user(token: Optional[str] = Depends(oauth2_scheme)) -> Optional[dict]:
@@ -244,6 +265,9 @@ class UserResponse(BaseModel):
     country: str = ""
     phone: str = ""
     company: str = ""
+    forms_filled_count: int = 0
+    free_tier_limit: int = 1
+    is_subscribed: bool = False
     created_at: str
     last_login_at: Optional[str] = None
 
@@ -326,6 +350,9 @@ async def register(body: CreateUserRequest) -> AuthResponse:
         "country": body.country.strip(),
         "phone": body.phone.strip(),
         "company": body.company.strip(),
+        "forms_filled_count": 0,
+        "free_tier_limit": 1,
+        "is_subscribed": False,
         "created_at": now,
         "created_by": "self-registered",
         "last_login_at": now,
@@ -372,6 +399,31 @@ async def login(body: LoginRequest) -> AuthResponse:
 async def me(user: dict = Depends(require_current_user)) -> UserResponse:
     """Return the currently authenticated user."""
     return UserResponse(**user)
+
+
+class SimulateUpgradeRequest(BaseModel):
+    is_subscribed: bool = True
+    reset_count: bool = False
+
+
+@auth_router.post("/simulate-upgrade", response_model=UserResponse)
+async def simulate_upgrade(
+    body: SimulateUpgradeRequest,
+    user: dict = Depends(require_current_user),
+) -> UserResponse:
+    """Simulate plan upgrade or reset for testing."""
+    db = get_db()
+    updates: dict = {"is_subscribed": body.is_subscribed}
+    if body.reset_count:
+        updates["forms_filled_count"] = 0
+    res = await db.users.find_one_and_update(
+        {"email": user["email"]},
+        {"$set": updates},
+        return_document=True,
+    )
+    if not res:
+        raise HTTPException(status_code=404, detail="User not found")
+    return UserResponse(**_serialize_user(res))
 
 
 # ---------------------------------------------------------------------------
@@ -426,6 +478,9 @@ async def create_user(
         "country": body.country.strip(),
         "phone": body.phone.strip(),
         "company": body.company.strip(),
+        "forms_filled_count": 0,
+        "free_tier_limit": 1,
+        "is_subscribed": False,
         "created_at": now,
         "created_by": admin["email"],
         "last_login_at": None,

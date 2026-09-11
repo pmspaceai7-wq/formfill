@@ -48,7 +48,12 @@ export function FieldOverlay({
         const height = (y1 - y0) * renderedHeight;
 
         return (
-          <div key={field.field_id} style={{ position: "absolute", left, top, width, height, zIndex: 11 }}>
+          <div
+            key={field.field_id}
+            data-field={field.field_id}
+            className="field-box-wrapper transition-all duration-300"
+            style={{ position: "absolute", left, top, width, height, zIndex: 11 }}
+          >
             <FieldBox
               field={field}
               value={values[field.field_id] ?? ""}

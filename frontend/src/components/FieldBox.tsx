@@ -187,11 +187,12 @@ export function FieldBox({
         const chars = value.split("");
         const cols = field.max_len;
         return wrap(
-          <div style={{ display: "flex", width: "100%", height: "100%" }}>
+          <div data-field={field.field_id} style={{ display: "flex", width: "100%", height: "100%" }}>
             {Array.from({ length: cols }).map((_, i) => (
               <input
                 key={i}
                 type="text"
+                data-field={i === 0 ? field.field_id : undefined}
                 maxLength={1}
                 value={chars[i] ?? ""}
                 tabIndex={tabIndex}
@@ -224,7 +225,7 @@ export function FieldBox({
         );
       }
       return wrap(
-        <input type="text" style={shared} value={value}
+        <input type="text" data-field={field.field_id} style={shared} value={value}
           onChange={e => onChange(e.target.value)}
           tabIndex={tabIndex}
           maxLength={field.max_len ?? undefined} />
@@ -232,7 +233,7 @@ export function FieldBox({
 
     case "multiline_text":
       return wrap(
-        <textarea style={{ ...shared, resize: "none" }} value={value}
+        <textarea data-field={field.field_id} style={{ ...shared, resize: "none" }} value={value}
           onChange={e => onChange(e.target.value)}
           tabIndex={tabIndex} />
       );
@@ -241,6 +242,7 @@ export function FieldBox({
       const checked = value === (field.on_state ?? "Yes");
       return wrap(
         <button type="button"
+          data-field={field.field_id}
           style={{ ...shared, cursor: "pointer", fontSize: 14, fontWeight: "bold", color: "#1d4ed8" }}
           tabIndex={tabIndex}
           onClick={() => onChange(checked ? "" : (field.on_state ?? "Yes"))}>
@@ -252,7 +254,7 @@ export function FieldBox({
     case "dropdown":
     case "listbox":
       return wrap(
-        <select style={{ ...shared, cursor: "pointer" }} value={value}
+        <select data-field={field.field_id} style={{ ...shared, cursor: "pointer" }} value={value}
           onChange={e => onChange(e.target.value)} tabIndex={tabIndex}>
           <option value="">—</option>
           {(field.options ?? []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -262,7 +264,7 @@ export function FieldBox({
     case "radio": {
       const opts = field.options ?? [];
       return wrap(
-        <div style={{ ...shared, display: "flex", alignItems: "center", gap: 2 }}>
+        <div data-field={field.field_id} tabIndex={tabIndex} style={{ ...shared, display: "flex", alignItems: "center", gap: 2 }}>
           {opts.map(opt => (
             <div key={opt} title={opt} onClick={() => onChange(opt)}
               style={{

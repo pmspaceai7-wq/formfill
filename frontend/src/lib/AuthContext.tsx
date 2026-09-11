@@ -13,6 +13,7 @@ interface AuthContextType {
   register: (input: NewUserInput) => Promise<void>;
   logout: () => void;
   clearError: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -76,11 +77,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    const stored = localStorage.getItem(TOKEN_KEY);
+    if (!stored) return;
+    try {
+      const u = await getMe(stored);
+      setUser(u);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const clearError = useCallback(() => setError(null), []);
 
   return (
     <AuthContext.Provider
-      value={{ user, token, loading, error, login, register, logout, clearError }}
+      value={{ user, token, loading, error, login, register, logout, clearError, refreshUser }}
     >
       {children}
     </AuthContext.Provider>

@@ -1,7 +1,16 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { uploadForm, exportPdf, getProfile, loadDemoTemplate, loadTemplateById } from "@/lib/api";
+import {
+  uploadForm,
+  getForm,
+  exportPdf,
+  getProfile,
+  loadDemoTemplate,
+  loadTemplateById,
+  getSubmission,
+  saveSubmission,
+} from "@/lib/api";
 import type { FieldConflict, FormSchema, SourceSummary } from "@/lib/types";
 import { Navbar } from "@/components/Navbar";
 import { HeroUpload } from "@/components/HeroUpload";
@@ -13,6 +22,9 @@ import { ProfileDrawer } from "@/components/ProfileDrawer";
 import { TemplatesModal } from "@/components/TemplatesModal";
 import { SourceFileViewerModal } from "@/components/SourceFileViewerModal";
 import { useFillJob } from "@/hooks/useFillJob";
+import { useAuth } from "@/lib/AuthContext";
+import { UpgradeModal } from "@/components/UpgradeModal";
+import { AuditTrailModal } from "@/components/AuditTrailModal";
 import { AlertCircleIcon, RefreshCwIcon } from "@/components/Icons";
 
 type State = "empty" | "uploading" | "loaded" | "error";
@@ -56,7 +68,54 @@ export default function Home() {
   const [loadingTemplateId, setLoadingTemplateId] = useState<string | null>(null);
 
   const fillJob = useFillJob();
+  const { user, refreshUser } = useAuth();
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [authModalTrigger, setAuthModalTrigger] = useState<"login" | "signup" | null>(null);
+  const lastEmptyFieldIdRef = useRef<string | null>(null);
+  const lastConflictFieldIdRef = useRef<string | null>(null);
 
+  // Submissions & Audit State
+  const [activeSubmissionId, setActiveSubmissionId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [auditModalOpen, setAuditModalOpen] = useState(false);
+
+  // Load saved submission if ?submission_id=... is present in URL
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const subId = params.get("submission_id");
+    if (!subId) return;
+
+    getSubmission(subId)
+      .then(async (sub) => {
+        try {
+          const loadedSchema = await getForm(sub.form_id);
+          setSchema(loadedSchema);
+          setValues(sub.values || {});
+          setAiValues(sub.values || {});
+          setActiveSubmissionId(sub.id);
+          setIsSaved(true);
+          if (sub.source_id) {
+            setSourceId(sub.source_id);
+          }
+          setState("loaded");
+        } catch {
+          setError("Failed to load base form schema for this submission.");
+          setState("error");
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load submission:", err);
+      });
+  }, []);
+
+  // Automatically show upgrade modal if API returns quota exceeded (402)
+  useEffect(() => {
+    if (fillJob.isQuotaExceeded) {
+      setUpgradeModalOpen(true);
+    }
+  }, [fillJob.isQuotaExceeded]);
 
   // Load the remembered-detail count on mount so the header badge is accurate
   // even before the user touches anything.
@@ -76,6 +135,7 @@ export default function Home() {
   const handleChange = useCallback((id: string, val: string) => {
     setValues((prev) => ({ ...prev, [id]: val }));
     setUserEdited((prev) => new Set(prev).add(id));
+    setIsSaved(false);
   }, []);
 
   // When fill completes, merge AI values — skip user-edited fields
@@ -92,6 +152,8 @@ export default function Home() {
         }
         return merged;
       });
+      // Refresh user account so forms_filled_count updates immediately in the UI
+      refreshUser().catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fillJob.status, fillJob.values]);
@@ -116,22 +178,80 @@ export default function Home() {
       if (Math.abs(a.bbox[1] - b.bbox[1]) > 0.01) return a.bbox[1] - b.bbox[1];
       return a.bbox[0] - b.bbox[0];
     });
+
     const empty = sorted.filter(
-      (f) => !values[f.field_id] && !f.read_only && f.type !== "signature"
+      (f) =>
+        (!values[f.field_id] || !values[f.field_id].trim()) &&
+        !f.read_only &&
+        f.type !== "signature"
     );
     if (empty.length === 0) return;
-    const first = empty[0];
-    if (first.page !== page) setPage(first.page);
-    // Focus after render
-    setTimeout(() => {
-      const el = document.querySelector<HTMLElement>(
-        `[data-field="${first.field_id}"]`
-      );
-      if (el) {
-        el.focus();
-        el.scrollIntoView({ block: "center", behavior: "smooth" });
+
+    let nextIndex = 0;
+    const activeEl = typeof document !== "undefined" ? (document.activeElement as HTMLElement | null) : null;
+    const activeFieldId =
+      activeEl?.getAttribute("data-field") ||
+      activeEl?.closest("[data-field]")?.getAttribute("data-field");
+
+    const referenceId = activeFieldId || lastEmptyFieldIdRef.current;
+
+    if (referenceId) {
+      const currEmptyIdx = empty.findIndex((f) => f.field_id === referenceId);
+      if (currEmptyIdx !== -1) {
+        nextIndex = (currEmptyIdx + 1) % empty.length;
+      } else {
+        const refSortedIdx = sorted.findIndex((f) => f.field_id === referenceId);
+        if (refSortedIdx !== -1) {
+          const subsequent = empty.find((f) => {
+            const fIdx = sorted.findIndex((s) => s.field_id === f.field_id);
+            return fIdx > refSortedIdx;
+          });
+          if (subsequent) {
+            nextIndex = empty.findIndex((f) => f.field_id === subsequent.field_id);
+          }
+        }
       }
-    }, 100);
+    }
+
+    const targetField = empty[nextIndex];
+    lastEmptyFieldIdRef.current = targetField.field_id;
+    const targetFieldId = targetField.field_id;
+
+    const doFocus = (attempts = 0) => {
+      const allFieldEls = document.querySelectorAll<HTMLElement>("[data-field]");
+      let targetEl: HTMLElement | null = null;
+      for (let i = 0; i < allFieldEls.length; i++) {
+        if (allFieldEls[i].getAttribute("data-field") === targetFieldId) {
+          targetEl = allFieldEls[i];
+          break;
+        }
+      }
+
+      if (targetEl) {
+        targetEl.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+        const inputEl =
+          targetEl.querySelector<HTMLElement>("input, textarea, select, button") || targetEl;
+        try {
+          inputEl.focus({ preventScroll: true });
+        } catch {
+          inputEl.focus();
+        }
+
+        targetEl.classList.add("highlight-empty-field");
+        setTimeout(() => {
+          targetEl?.classList.remove("highlight-empty-field");
+        }, 2200);
+      } else if (attempts < 15) {
+        setTimeout(() => doFocus(attempts + 1), 50);
+      }
+    };
+
+    if (targetField.page !== page) {
+      setPage(targetField.page);
+      setTimeout(() => doFocus(0), 100);
+    } else {
+      doFocus(0);
+    }
   }, [schema, values, page]);
 
   const conflictsMap = useMemo(() => {
@@ -156,17 +276,60 @@ export default function Home() {
     });
     const conflictFields = sorted.filter((f) => conflictFieldIds.has(f.field_id));
     if (conflictFields.length === 0) return;
-    const first = conflictFields[0];
-    if (first.page !== page) setPage(first.page);
-    setTimeout(() => {
-      const el = document.querySelector<HTMLElement>(
-        `[data-field="${first.field_id}"]`
-      );
-      if (el) {
-        el.focus();
-        el.scrollIntoView({ block: "center", behavior: "smooth" });
+
+    let nextIndex = 0;
+    const activeEl = typeof document !== "undefined" ? (document.activeElement as HTMLElement | null) : null;
+    const activeFieldId =
+      activeEl?.getAttribute("data-field") ||
+      activeEl?.closest("[data-field]")?.getAttribute("data-field");
+
+    const referenceId = activeFieldId || lastConflictFieldIdRef.current;
+    if (referenceId) {
+      const currIdx = conflictFields.findIndex((f) => f.field_id === referenceId);
+      if (currIdx !== -1) {
+        nextIndex = (currIdx + 1) % conflictFields.length;
       }
-    }, 100);
+    }
+
+    const targetField = conflictFields[nextIndex];
+    lastConflictFieldIdRef.current = targetField.field_id;
+    const targetFieldId = targetField.field_id;
+
+    const doFocus = (attempts = 0) => {
+      const allFieldEls = document.querySelectorAll<HTMLElement>("[data-field]");
+      let targetEl: HTMLElement | null = null;
+      for (let i = 0; i < allFieldEls.length; i++) {
+        if (allFieldEls[i].getAttribute("data-field") === targetFieldId) {
+          targetEl = allFieldEls[i];
+          break;
+        }
+      }
+
+      if (targetEl) {
+        targetEl.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+        const inputEl =
+          targetEl.querySelector<HTMLElement>("input, textarea, select, button") || targetEl;
+        try {
+          inputEl.focus({ preventScroll: true });
+        } catch {
+          inputEl.focus();
+        }
+
+        targetEl.classList.add("highlight-conflict-field");
+        setTimeout(() => {
+          targetEl?.classList.remove("highlight-conflict-field");
+        }, 2200);
+      } else if (attempts < 15) {
+        setTimeout(() => doFocus(attempts + 1), 50);
+      }
+    };
+
+    if (targetField.page !== page) {
+      setPage(targetField.page);
+      setTimeout(() => doFocus(0), 100);
+    } else {
+      doFocus(0);
+    }
   }, [schema, fillJob.conflicts, page]);
 
   const handleDownload = useCallback(async () => {
@@ -191,6 +354,11 @@ export default function Home() {
 
   const handleFile = useCallback(
     async (file: File) => {
+      if (!user) {
+        setAuthModalTrigger("signup");
+        setError("Please sign in or create an account with your business email to upload forms.");
+        return;
+      }
       if (!file.name.toLowerCase().endsWith(".pdf")) {
         setError("Please upload a PDF file (.pdf).");
         setState("error");
@@ -215,10 +383,15 @@ export default function Home() {
         setState("error");
       }
     },
-    [fillJob]
+    [user, fillJob]
   );
 
   const handleLoadDemo = useCallback(async () => {
+    if (!user) {
+      setAuthModalTrigger("signup");
+      setError("Please sign in or create an account with your business email to load templates.");
+      return;
+    }
     setError("");
     setLoadingDemo(true);
     try {
@@ -241,10 +414,15 @@ export default function Home() {
     } finally {
       setLoadingDemo(false);
     }
-  }, [fillJob]);
+  }, [user, fillJob]);
 
   const handleLoadTemplate = useCallback(
     async (templateId: string) => {
+      if (!user) {
+        setAuthModalTrigger("signup");
+        setError("Please sign in or create an account with your business email to load templates.");
+        return;
+      }
       setError("");
       setLoadingTemplateId(templateId);
       try {
@@ -265,7 +443,7 @@ export default function Home() {
         setLoadingTemplateId(null);
       }
     },
-    [fillJob]
+    [user, fillJob]
   );
 
   const resetAll = useCallback(() => {
@@ -277,6 +455,8 @@ export default function Home() {
     setUserEdited(new Set());
     setSourceId(null);
     setSourceSummary(null);
+    setActiveSubmissionId(null);
+    setIsSaved(false);
     fillJob.reset();
   }, [fillJob]);
 
@@ -290,6 +470,56 @@ export default function Home() {
     Boolean(v && v.trim())
   ).length;
 
+  const isSubscribed = user?.role === "admin" || Boolean(user?.is_subscribed);
+  const quotaRemaining =
+    user && user.role !== "admin" && !user.is_subscribed
+      ? Math.max(0, (user.free_tier_limit ?? 1) - (user.forms_filled_count ?? 0))
+      : null;
+
+  const handleFill = useCallback(() => {
+    if (!schema) return;
+    if (!user) {
+      alert("Please sign in with your business email to fill forms.");
+      return;
+    }
+    const filledTotal = user.forms_filled_count ?? 0;
+    const freeLimit = user.free_tier_limit ?? 1;
+    if (user.role !== "admin" && !user.is_subscribed && filledTotal >= freeLimit) {
+      setUpgradeModalOpen(true);
+      return;
+    }
+    fillJob.start(schema.form_id, sourceId ?? "");
+  }, [schema, user, sourceId, fillJob]);
+
+  const handleSaveSubmission = useCallback(async () => {
+    if (!schema) return;
+    if (!user) {
+      alert("Please sign in with your business email to save submissions to My Forms.");
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const saved = await saveSubmission({
+        form_id: schema.form_id,
+        filename: schema.filename,
+        title: schema.filename,
+        values,
+        citations: fillJob.citations ?? undefined,
+        conflicts: fillJob.conflicts ?? undefined,
+        inferences: fillJob.inferences ?? undefined,
+        source_id: sourceId,
+        submission_id: activeSubmissionId ?? undefined,
+        status: "filled",
+      });
+      setActiveSubmissionId(saved.id);
+      setIsSaved(true);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to save submission");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [schema, user, values, fillJob, sourceId, activeSubmissionId]);
+
   return (
     <div className="flex flex-col min-h-screen w-full bg-slate-100">
       {/* Top SaaS Header */}
@@ -302,6 +532,8 @@ export default function Home() {
         onLoadTemplate={handleLoadTemplate}
         loadingDemo={loadingDemo}
         loadingTemplateId={loadingTemplateId}
+        authModalOpen={authModalTrigger}
+        onAuthModalClose={() => setAuthModalTrigger(null)}
       />
 
       <TemplatesModal
@@ -325,6 +557,26 @@ export default function Home() {
         onChanged={setFactCount}
       />
 
+      <UpgradeModal
+        open={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
+        onUpgradeSuccess={() => fillJob.reset()}
+      />
+
+      <AuditTrailModal
+        open={auditModalOpen}
+        onClose={() => setAuditModalOpen(false)}
+        submissionId={activeSubmissionId ?? undefined}
+        formTitle={schema?.filename ?? "Form Submission"}
+        filename={schema?.filename ?? "form.pdf"}
+        userEmail={user?.email}
+        values={values}
+        citations={fillJob.citations ?? {}}
+        conflicts={fillJob.conflicts ?? []}
+        inferences={fillJob.inferences ?? {}}
+        schema={schema}
+      />
+
       {sourceViewer && (
         <SourceFileViewerModal
           isOpen={Boolean(sourceViewer)}
@@ -345,6 +597,8 @@ export default function Home() {
           isLoading={state === "uploading"}
           error={error}
           onClearError={() => setError("")}
+          isLoggedIn={Boolean(user)}
+          onRequireAuth={() => setAuthModalTrigger("signup")}
         />
       ) : state === "error" ? (
         <div className="flex-1 flex flex-col items-center justify-center p-6 bg-slate-50 text-slate-800">
@@ -394,14 +648,22 @@ export default function Home() {
             fillDone={fillJob.done}
             fillTotal={fillJob.total}
             fillError={fillJob.error}
-            onFill={() => fillJob.start(schema!.form_id, sourceId ?? "")}
-            onFillRetry={() => fillJob.start(schema!.form_id, sourceId ?? "")}
+            isQuotaExceeded={fillJob.isQuotaExceeded}
+            onOpenUpgrade={() => setUpgradeModalOpen(true)}
+            quotaRemaining={quotaRemaining}
+            isSubscribed={isSubscribed}
+            onFill={handleFill}
+            onFillRetry={handleFill}
             onNextEmpty={focusNextEmpty}
             onDownload={handleDownload}
             downloading={downloading}
             onResetForm={resetAll}
             conflictCount={fillJob.conflicts?.length ?? 0}
             onNextConflict={focusNextConflict}
+            onOpenAudit={() => setAuditModalOpen(true)}
+            onSaveSubmission={handleSaveSubmission}
+            isSaving={isSaving}
+            isSaved={isSaved}
           />
 
           <div className="flex flex-1 min-h-0 items-start">
