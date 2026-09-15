@@ -12,6 +12,7 @@ import logging
 from pathlib import Path
 
 from pypdf import PdfReader, PdfWriter
+from pypdf.generic import BooleanObject, NameObject
 
 from app.models import FormField, FormSchema
 from app.storage import form_dir, read_json
@@ -48,10 +49,19 @@ def _button_states(reader: PdfReader, raw_name: str) -> list[str]:
 def _resolve_button(reader: PdfReader, raw_name: str, value: str) -> str | None:
     """Map a user value to a valid PDF button state name, or None if not mappable."""
     states = _button_states(reader, raw_name)
-    state_lookup = {s.lstrip("/").lower(): "/" + s.lstrip("/") for s in states}
-    on_states = [v for k, v in state_lookup.items() if k != "off"]
-    norm = value.strip().lstrip("/").lower()
+    state_lookup: dict[str, str] = {}
+    for s in states:
+        clean = s.lstrip("/")
+        formatted = "/" + clean
+        state_lookup[clean.lower()] = formatted
+        state_lookup[clean.strip().lower()] = formatted
 
+    on_states = [v for k, v in state_lookup.items() if not k.strip().lower() in ("off", "")]
+    norm = value.strip().lstrip("/").lower()
+    raw_norm = value.lstrip("/").lower()
+
+    if raw_norm in state_lookup:
+        return state_lookup[raw_norm]
     if norm in state_lookup:
         return state_lookup[norm]
     if norm in _BUTTON_TRUTHY:
@@ -91,6 +101,18 @@ def export_filled_pdf(
     writer = PdfWriter()
     writer.clone_reader_document_root(reader)
 
+    # Sanitize AcroForm: strip XFA to avoid blank XFA overrides in viewers (Chrome/Edge/Acrobat)
+    # and signal viewers that form appearances must be respected.
+    cat = writer._root_object
+    if NameObject("/AcroForm") in cat:
+        try:
+            af = cat[NameObject("/AcroForm")].get_object()
+            if NameObject("/XFA") in af:
+                del af[NameObject("/XFA")]
+            af[NameObject("/NeedAppearances")] = BooleanObject(True)
+        except Exception:
+            logger.debug("Could not modify AcroForm catalog flags", exc_info=True)
+
     # Translate field_id values → raw_name values (what pypdf expects)
     raw_values: dict[str, str] = {}
     written = 0
@@ -114,15 +136,16 @@ def export_filled_pdf(
         raw_values[raw] = val
         written += 1
 
-    # Write to all pages (same pattern as pdf_autofiller)
+    # Write to all pages with flatten=True to burn rendered text/checkboxes
+    # into the PDF vector content stream so values are visible in any viewer.
     for page in writer.pages:
         try:
-            writer.update_page_form_field_values(page, raw_values)
+            writer.update_page_form_field_values(page, raw_values, flatten=True)
         except Exception:
             logger.debug("Batch update failed on page, trying per-field", exc_info=True)
             for rname, rval in raw_values.items():
                 try:
-                    writer.update_page_form_field_values(page, {rname: rval})
+                    writer.update_page_form_field_values(page, {rname: rval}, flatten=True)
                 except Exception:
                     logger.debug("Failed to write field %s", rname, exc_info=True)
 

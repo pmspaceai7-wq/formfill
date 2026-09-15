@@ -340,17 +340,39 @@ export default function Home() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = schema.filename.replace(".pdf", "_filled.pdf");
+      a.download = schema.filename.replace(/\.pdf$/i, "") + "_filled.pdf";
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+
+      // Auto-save submission for logged-in user so it appears in My Forms
+      if (user) {
+        try {
+          const saved = await saveSubmission({
+            form_id: schema.form_id,
+            filename: schema.filename,
+            title: schema.filename,
+            values,
+            citations: fillJob.citations ?? undefined,
+            conflicts: fillJob.conflicts ?? undefined,
+            inferences: fillJob.inferences ?? undefined,
+            source_id: sourceId,
+            submission_id: activeSubmissionId ?? undefined,
+            status: "exported",
+          });
+          setActiveSubmissionId(saved.id);
+          setIsSaved(true);
+        } catch (saveErr) {
+          console.warn("Auto-save on download failed:", saveErr);
+        }
+      }
     } catch (e) {
       alert(e instanceof Error ? e.message : "Export failed");
     } finally {
       setDownloading(false);
     }
-  }, [schema, values]);
+  }, [schema, values, user, fillJob.citations, fillJob.conflicts, fillJob.inferences, sourceId, activeSubmissionId]);
 
   const handleFile = useCallback(
     async (file: File) => {
@@ -494,7 +516,8 @@ export default function Home() {
   const handleSaveSubmission = useCallback(async () => {
     if (!schema) return;
     if (!user) {
-      alert("Please sign in with your business email to save submissions to My Forms.");
+      setAuthModalTrigger("login");
+      setError("Please sign in or create an account with your business email to save submissions to My Forms.");
       return;
     }
     setIsSaving(true);
@@ -518,7 +541,7 @@ export default function Home() {
     } finally {
       setIsSaving(false);
     }
-  }, [schema, user, values, fillJob, sourceId, activeSubmissionId]);
+  }, [schema, user, values, fillJob.citations, fillJob.conflicts, fillJob.inferences, sourceId, activeSubmissionId]);
 
   return (
     <div className="flex flex-col min-h-screen w-full bg-slate-100">
