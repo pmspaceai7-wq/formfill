@@ -59,3 +59,32 @@ it's demo-hardening for what already exists, independent of this work.
 - Navbar Streamlining: In active form filling view (`hasForm=true`), clutter is reduced to core items: Home, Services, FAQ, and Book Demo.
 - Product Demo Booking: Added interactive Cal.com demo booking modal (`https://cal.com/space-ai/space-lizit-product-demo`) with native dark theme embedding.
 - Performance Optimizations: Disk embedding cache + batch encoding added to cut form fill time from ~30s to ~1-2s; initial PDF render trimmed to first 3 pages with on-demand streaming.
+
+## Pre-Deployment Test Run — 2026-09-16 — PASSED ✅
+
+Full automated test suite (19 checks) run against live backend. **19/19 passed, 0 failed.**
+
+### Bugs found and fixed
+
+| Bug | File | Fix |
+|-----|------|-----|
+| `UnboundLocalError: new_facts` — fill job crashed when source file produced no parseable text (empty `items` AND empty `text.strip()`) | `backend/app/fill_local.py` | Added `else: new_facts = {}` so variable is always initialised before use |
+| `'NoneType' object has no attribute 'items'` — pypdf crashed on pages with no `/Annots` during PDF export | `backend/app/pdf_export.py` | Skip pages without `/Annots`, guard against calling `update_page_form_field_values` with empty values dict |
+
+### Test results summary
+
+| Metric | Result |
+|--------|--------|
+| Health check | ✅ |
+| Register / Login / `/auth/me` | ✅ |
+| Upload 38-page I-129 PDF | ✅ 2.9s, 980 fields |
+| Page render (pages 1 & 2) | ✅ 232 KB / 313 KB |
+| Source upload | ✅ |
+| Fill job (async, polled) | ✅ 411/411 fields filled |
+| Export filled PDF | ✅ 4.3 MB PDF returned |
+| Submissions history (auth-gated) | ✅ |
+| Non-AcroForm → 400 error | ✅ |
+| CORS preflight | ✅ `localhost:3000` allowed |
+| Auth protection (401 without token) | ✅ |
+| Profile endpoint | ✅ |
+

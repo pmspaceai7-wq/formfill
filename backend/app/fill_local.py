@@ -79,6 +79,8 @@ def fill_form_local(
                 [{"name": "source", "text": text}]
             )
             stats = merge_facts(new_facts, source=source_label)
+        else:
+            new_facts = {}
 
         # Prioritize facts extracted from the documents uploaded for this specific fill job.
         # Fall back to saved profile ONLY if no source documents were uploaded.

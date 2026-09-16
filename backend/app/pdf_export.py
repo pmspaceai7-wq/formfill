@@ -138,16 +138,26 @@ def export_filled_pdf(
 
     # Write to all pages. Do not flatten to avoid double-rendering / ghost text blur;
     # removing XFA and setting NeedAppearances ensures crisp native AcroForm appearance.
-    for page in writer.pages:
-        try:
-            writer.update_page_form_field_values(page, raw_values)
-        except Exception:
-            logger.debug("Batch update failed on page, trying per-field", exc_info=True)
-            for rname, rval in raw_values.items():
-                try:
-                    writer.update_page_form_field_values(page, {rname: rval})
-                except Exception:
-                    logger.debug("Failed to write field %s", rname, exc_info=True)
+    if raw_values:  # skip entirely if nothing to write (avoids pypdf NoneType crash)
+        from pypdf.generic import NameObject as _NO, ArrayObject as _AO
+        for page in writer.pages:
+            # Skip pages that have no /Annots (no form widgets) to avoid pypdf crash
+            # when it tries to call .items() on a None annotation list
+            try:
+                page_obj = page.get_object() if hasattr(page, "get_object") else page
+                if _NO("/Annots") not in page_obj:
+                    continue
+            except Exception:
+                pass
+            try:
+                writer.update_page_form_field_values(page, raw_values)
+            except Exception:
+                logger.debug("Batch update failed on page, trying per-field", exc_info=True)
+                for rname, rval in raw_values.items():
+                    try:
+                        writer.update_page_form_field_values(page, {rname: rval})
+                    except Exception:
+                        logger.debug("Failed to write field %s", rname, exc_info=True)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("wb") as f:
