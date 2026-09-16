@@ -47,8 +47,21 @@ from app.submissions import submissions_router
 async def lifespan(application: FastAPI):
     """Connect to MongoDB on startup, disconnect on shutdown."""
     await connect_db()
+    # Pre-warm the embedding model in a background thread so the first fill
+    # doesn't have a cold-start delay. This runs concurrently with startup.
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, _prewarm_embeddings)
     yield
     await close_db()
+
+
+def _prewarm_embeddings() -> None:
+    """Load model and alias embeddings from disk cache (or compute once)."""
+    try:
+        from app.match import _alias_embeddings
+        _alias_embeddings()
+    except Exception:
+        pass
 
 
 app = FastAPI(title="FormFill API", lifespan=lifespan)
@@ -173,7 +186,14 @@ async def upload_form(
     pdf_path = fdir / "original.pdf"
     pdf_path.write_bytes(content)
 
-    return _process_pdf_and_create_schema(pdf_path, file.filename or pdf_path.name, form_id)
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        None,
+        _process_pdf_and_create_schema,
+        pdf_path,
+        file.filename or pdf_path.name,
+        form_id,
+    )
 
 
 

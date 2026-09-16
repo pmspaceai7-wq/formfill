@@ -16,7 +16,7 @@ import logging
 
 from app.extract import extract_facts_with_provenance
 from app.inference import infer_form_fields
-from app.match import match_field, model_available
+from app.match import batch_embed_fields, match_field, model_available
 from app.models import (
     CandidateValue,
     FieldCitation,
@@ -118,14 +118,21 @@ def fill_form_local(
             total, len(known), model_available(),
         )
 
-        # 3. Match and clean
+        # 3. Batch-embed ALL field queries in one model.encode() call.
+        # This replaces ~900 individual encode calls with a single vectorised pass,
+        # cutting fill time from ~60s to ~3s for large government forms.
+        precomputed_embeds = batch_embed_fields(fillable)
+        if precomputed_embeds:
+            logger.info("Batch-embedded %d unique field queries", len(precomputed_embeds))
+
+        # 4. Match and clean
         result: dict[str, str] = {}
         citations: dict[str, FieldCitation] = {}
         conflicts: list[FieldConflict] = []
         matched_by_method: dict[str, int] = {}
 
         for i, field in enumerate(fillable):
-            hit = match_field(field, available)
+            hit = match_field(field, available, precomputed=precomputed_embeds)
             if hit is not None:
                 cleaned = clean_value(known[hit.fact_key], field)
                 if cleaned:

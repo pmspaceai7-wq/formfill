@@ -9,8 +9,14 @@ import {
   AlertCircleIcon,
   EyeIcon,
   EyeOffIcon,
+  CalendarIcon,
+  ChevronDownIcon,
+  UploadIcon,
+  SparklesIcon,
 } from "./Icons";
 import { TemplatesModal } from "./TemplatesModal";
+import { DemoModal } from "./DemoModal";
+import { FaqModal } from "./FaqModal";
 import { useAuth } from "@/lib/AuthContext";
 
 interface Props {
@@ -99,6 +105,8 @@ export function Navbar({
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showSignUpModal, setShowSignUpModal] = useState(false);
   const [showTemplatesModal, setShowTemplatesModal] = useState(false);
+  const [showDemoModal, setShowDemoModal] = useState(false);
+  const [showFaqModal, setShowFaqModal] = useState(false);
 
   // Sync external auth modal triggers (e.g. upload attempted while logged out)
   React.useEffect(() => {
@@ -189,20 +197,24 @@ export function Navbar({
 
   return (
     <>
-      <header className="w-full bg-slate-950 border-b border-slate-800/80 sticky top-0 z-50 px-4 sm:px-8 lg:px-12 py-3 flex items-center justify-between transition-all shadow-md shadow-black/20">
+      <header className="relative w-full bg-slate-950/90 border-b border-slate-800/80 sticky top-0 z-50 px-4 sm:px-8 lg:px-12 py-2.5 flex items-center justify-between transition-all shadow-lg shadow-black/40 backdrop-blur-xl">
+        {/* Subtle Ambient Top Glow Line */}
+        <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-blue-500/60 to-transparent pointer-events-none" />
+
         {/* Left: Brand */}
         <Link href="/" className="flex items-center gap-3 cursor-pointer group flex-shrink-0" onClick={onReset}>
-          <div className="w-9 h-9 rounded-xl bg-slate-900 border border-slate-700/80 flex items-center justify-center text-slate-200 group-hover:border-blue-500/50 group-hover:text-white transition-all shadow-xs flex-shrink-0">
-            <FileTextIcon size={18} className="text-blue-400" />
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 via-indigo-600 to-cyan-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/25 ring-1 ring-white/25 group-hover:scale-105 transition-all flex-shrink-0">
+            <FileTextIcon size={18} className="text-white" />
           </div>
 
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-lg tracking-tight text-white group-hover:text-blue-300 transition-colors">
-                Space<span className="text-blue-500">Fill</span>
+              <span className="font-extrabold text-lg tracking-tight text-white group-hover:text-blue-300 transition-colors">
+                Space<span className="bg-gradient-to-r from-blue-400 via-indigo-300 to-cyan-300 bg-clip-text text-transparent">Fill</span>
               </span>
-              <span className="text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-md bg-blue-950/80 text-blue-300 border border-blue-800/60">
-                Form Studio
+              <span className="text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/25 shadow-xs flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-xs shadow-emerald-400/80" />
+                Studio
               </span>
             </div>
             <span className="text-[11px] text-slate-400 font-normal -mt-0.5 hidden sm:inline">
@@ -211,178 +223,317 @@ export function Navbar({
           </div>
         </Link>
 
-        {/* Center: Clean Spacious Navigation */}
-        <nav className="hidden md:flex items-center justify-center flex-1 max-w-2xl mx-6 lg:mx-10 gap-1 lg:gap-2.5 xl:gap-4 text-sm font-medium text-slate-300">
-          <Link
-            href="/"
-            onClick={onReset}
-            className="px-3 py-1.5 rounded-lg hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
-          >
-            Home
-          </Link>
-
-          <Link
-            href="/about"
-            className="px-3 py-1.5 rounded-lg hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
-          >
-            About
-          </Link>
-
-          {/* Services Hover Dropdown */}
-          <div
-            className="relative"
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-          >
-            <button
-              onClick={() => setServicesOpen(!servicesOpen)}
-              className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer ${
-                servicesOpen
-                  ? "text-white bg-slate-900"
-                  : "hover:text-white hover:bg-slate-900 text-slate-300"
-              }`}
+        {/* Center: Navigation in full line with generous spaces in between */}
+        {hasForm ? (
+          <nav className="hidden md:flex items-center justify-center flex-1 mx-6 lg:mx-12 xl:mx-20 gap-8 lg:gap-12 xl:gap-16 text-sm font-medium text-slate-300">
+            <Link
+              href="/"
+              onClick={onReset}
+              className="text-slate-300 hover:text-white transition-colors py-1 cursor-pointer font-medium tracking-wide flex items-center gap-1.5 hover:scale-105 transition-transform"
             >
-              <span>Services</span>
-              <span
-                className={`text-[9px] text-slate-400 transition-transform duration-200 ${
-                  servicesOpen ? "rotate-180" : ""
+              Home
+            </Link>
+
+            {/* Services Hover Dropdown */}
+            <div
+              className="relative"
+              onMouseEnter={handleMouseEnter}
+              onMouseLeave={handleMouseLeave}
+            >
+              <button
+                onClick={() => setServicesOpen(!servicesOpen)}
+                className={`transition-colors py-1 flex items-center gap-1.5 cursor-pointer font-medium tracking-wide ${
+                  servicesOpen ? "text-white" : "text-slate-300 hover:text-white"
                 }`}
               >
-                ▼
-              </span>
+                <span>Services</span>
+                <ChevronDownIcon
+                  size={13}
+                  className={`text-slate-400 transition-transform duration-200 ${
+                    servicesOpen ? "rotate-180 text-blue-400" : ""
+                  }`}
+                />
+              </button>
+
+              {/* Dropdown Menu */}
+              {servicesOpen && (
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-[580px] bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 p-5 z-50 text-slate-200 animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800">
+                    <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                      Core Capabilities &amp; Workflows
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      Enterprise Precision
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Column 1 */}
+                    <div className="space-y-3">
+                      {SERVICES_LIST.col1.map((item, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => {
+                            setServicesOpen(false);
+                            if (onReset) onReset();
+                          }}
+                          className="p-2.5 rounded-xl hover:bg-slate-800/80 transition-all cursor-pointer group"
+                        >
+                          <div className="text-[10px] uppercase font-bold text-blue-400 tracking-wider">
+                            {item.category}
+                          </div>
+                          <div className="text-xs font-semibold text-white group-hover:text-blue-300 transition-colors mt-0.5">
+                            {item.title}
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed mt-1">
+                            {item.desc}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Column 2 */}
+                    <div className="space-y-3">
+                      {SERVICES_LIST.col2.map((item, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => {
+                            setServicesOpen(false);
+                            if (item.title.includes("Security")) setShowSecurityModal(true);
+                            else if (item.title.includes("Template")) setShowTemplatesModal(true);
+                            else if (onReset) onReset();
+                          }}
+                          className="p-2.5 rounded-xl hover:bg-slate-800/80 transition-all cursor-pointer group"
+                        >
+                          <div className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">
+                            {item.category}
+                          </div>
+                          <div className="text-xs font-semibold text-white group-hover:text-emerald-300 transition-colors mt-0.5">
+                            {item.title}
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed mt-1">
+                            {item.desc}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+                    <span>Looking for custom integrations?</span>
+                    <button
+                      onClick={() => {
+                        setServicesOpen(false);
+                        setShowContactModal(true);
+                      }}
+                      className="text-blue-400 hover:text-blue-300 font-semibold cursor-pointer"
+                    >
+                      Contact Team →
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* FAQ */}
+            <button
+              onClick={() => setShowFaqModal(true)}
+              className="text-slate-300 hover:text-white transition-colors py-1 cursor-pointer font-medium tracking-wide hover:scale-105 transition-transform"
+            >
+              FAQ
             </button>
 
-            {/* Dropdown Menu */}
-            {servicesOpen && (
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-[580px] bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 p-5 z-50 text-slate-200 animate-in fade-in duration-150">
-                <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800">
-                  <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                    Core Capabilities &amp; Workflows
-                  </span>
-                  <span className="text-[11px] text-slate-400">
-                    Enterprise Precision
-                  </span>
-                </div>
+            {/* Book Demo Button */}
+            <button
+              onClick={() => setShowDemoModal(true)}
+              className="px-4 py-1.5 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:via-indigo-500 hover:to-purple-500 shadow-md shadow-blue-500/25 ring-1 ring-white/20 transition-all flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95"
+              title="Schedule a live 30-min product walkthrough"
+            >
+              <CalendarIcon size={14} className="text-blue-200" />
+              <span>Demo</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 animate-pulse" />
+            </button>
+          </nav>
+        ) : (
+          <nav className="hidden md:flex items-center justify-center flex-1 max-w-3xl mx-6 lg:mx-10 gap-1.5 lg:gap-2.5 text-sm font-medium text-slate-300">
+            <Link
+              href="/"
+              onClick={onReset}
+              className="px-3 py-1.5 rounded-lg hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
+            >
+              Home
+            </Link>
 
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Column 1 */}
-                  <div className="space-y-3">
-                    {SERVICES_LIST.col1.map((item, idx) => (
-                      <div
-                        key={idx}
-                        onClick={() => {
-                          setServicesOpen(false);
-                          if (onReset) onReset();
-                        }}
-                        className="p-2.5 rounded-xl hover:bg-slate-800/80 transition-all cursor-pointer group"
-                      >
-                        <div className="text-[10px] uppercase font-bold text-blue-400 tracking-wider">
-                          {item.category}
-                        </div>
-                        <div className="text-xs font-semibold text-white group-hover:text-blue-300 transition-colors mt-0.5">
-                          {item.title}
-                        </div>
-                        <p className="text-[11px] text-slate-400 leading-relaxed mt-1">
-                          {item.desc}
-                        </p>
-                      </div>
-                    ))}
+            <Link
+              href="/about"
+              className="px-3 py-1.5 rounded-lg hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
+            >
+              About
+            </Link>
+
+            {/* Services Hover Dropdown */}
+            <div
+              className="relative"
+              onMouseEnter={handleMouseEnter}
+              onMouseLeave={handleMouseLeave}
+            >
+              <button
+                onClick={() => setServicesOpen(!servicesOpen)}
+                className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  servicesOpen
+                    ? "text-white bg-slate-900"
+                    : "hover:text-white hover:bg-slate-900 text-slate-300"
+                }`}
+              >
+                <span>Services</span>
+                <ChevronDownIcon
+                  size={13}
+                  className={`text-slate-400 transition-transform duration-200 ${
+                    servicesOpen ? "rotate-180 text-blue-400" : ""
+                  }`}
+                />
+              </button>
+
+              {/* Dropdown Menu */}
+              {servicesOpen && (
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-[580px] bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 p-5 z-50 text-slate-200 animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800">
+                    <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                      Core Capabilities &amp; Workflows
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      Enterprise Precision
+                    </span>
                   </div>
 
-                  {/* Column 2 */}
-                  <div className="space-y-3">
-                    {SERVICES_LIST.col2.map((item, idx) => (
-                      <div
-                        key={idx}
-                        onClick={() => {
-                          setServicesOpen(false);
-                          if (item.title.includes("Security")) setShowSecurityModal(true);
-                          else if (item.title.includes("Template")) setShowTemplatesModal(true);
-                          else if (onReset) onReset();
-                        }}
-                        className="p-2.5 rounded-xl hover:bg-slate-800/80 transition-all cursor-pointer group"
-                      >
-                        <div className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">
-                          {item.category}
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Column 1 */}
+                    <div className="space-y-3">
+                      {SERVICES_LIST.col1.map((item, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => {
+                            setServicesOpen(false);
+                            if (onReset) onReset();
+                          }}
+                          className="p-2.5 rounded-xl hover:bg-slate-800/80 transition-all cursor-pointer group"
+                        >
+                          <div className="text-[10px] uppercase font-bold text-blue-400 tracking-wider">
+                            {item.category}
+                          </div>
+                          <div className="text-xs font-semibold text-white group-hover:text-blue-300 transition-colors mt-0.5">
+                            {item.title}
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed mt-1">
+                            {item.desc}
+                          </p>
                         </div>
-                        <div className="text-xs font-semibold text-white group-hover:text-emerald-300 transition-colors mt-0.5">
-                          {item.title}
+                      ))}
+                    </div>
+
+                    {/* Column 2 */}
+                    <div className="space-y-3">
+                      {SERVICES_LIST.col2.map((item, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => {
+                            setServicesOpen(false);
+                            if (item.title.includes("Security")) setShowSecurityModal(true);
+                            else if (item.title.includes("Template")) setShowTemplatesModal(true);
+                            else if (onReset) onReset();
+                          }}
+                          className="p-2.5 rounded-xl hover:bg-slate-800/80 transition-all cursor-pointer group"
+                        >
+                          <div className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">
+                            {item.category}
+                          </div>
+                          <div className="text-xs font-semibold text-white group-hover:text-emerald-300 transition-colors mt-0.5">
+                            {item.title}
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed mt-1">
+                            {item.desc}
+                          </p>
                         </div>
-                        <p className="text-[11px] text-slate-400 leading-relaxed mt-1">
-                          {item.desc}
-                        </p>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+                    <span>Looking for custom integrations?</span>
+                    <button
+                      onClick={() => {
+                        setServicesOpen(false);
+                        setShowContactModal(true);
+                      }}
+                      className="text-blue-400 hover:text-blue-300 font-semibold cursor-pointer"
+                    >
+                      Contact Team →
+                    </button>
                   </div>
                 </div>
+              )}
+            </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
-                  <span>Looking for custom integrations?</span>
-                  <button
-                    onClick={() => {
-                      setServicesOpen(false);
-                      setShowContactModal(true);
-                    }}
-                    className="text-blue-400 hover:text-blue-300 font-semibold cursor-pointer"
-                  >
-                    Contact Team →
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+            <button
+              onClick={() => setShowTemplatesModal(true)}
+              className="px-3 py-1.5 rounded-lg hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
+            >
+              Templates
+            </button>
 
-          {/* Templates Tab */}
-          <button
-            onClick={() => setShowTemplatesModal(true)}
-            className="px-3 py-1.5 rounded-lg hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
-          >
-            Templates
-          </button>
+            <button
+              onClick={() => setShowPricingModal(true)}
+              className="px-3 py-1.5 rounded-lg hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
+            >
+              Pricing
+            </button>
 
-          <button
-            onClick={() => setShowPricingModal(true)}
-            className="px-3 py-1.5 rounded-lg hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
-          >
-            Pricing
-          </button>
+            <Link
+              href="/security"
+              className="px-3 py-1.5 rounded-lg hover:text-white hover:bg-slate-900 transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <ShieldCheckIcon size={14} className="text-slate-400" />
+              <span>Security</span>
+            </Link>
 
-          <Link
-            href="/security"
-            className="px-3 py-1.5 rounded-lg hover:text-white hover:bg-slate-900 transition-colors flex items-center gap-1.5 cursor-pointer"
-          >
-            <ShieldCheckIcon size={14} className="text-slate-400" />
-            <span>Security</span>
-          </Link>
+            <a
+              href="#faq"
+              className="px-3 py-1.5 rounded-lg hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
+            >
+              FAQ
+            </a>
 
-          <a
-            href="#faq"
-            className="px-3 py-1.5 rounded-lg hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
-          >
-            FAQ
-          </a>
+            <button
+              onClick={() => setShowDemoModal(true)}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-md shadow-blue-500/25 transition-all flex items-center gap-1.5 cursor-pointer hover:scale-[1.02]"
+              title="Schedule a live 30-min product walkthrough"
+            >
+              <CalendarIcon size={13} className="text-blue-200" />
+              <span>Demo</span>
+            </button>
 
-          <button
-            onClick={() => setShowContactModal(true)}
-            className="px-3 py-1.5 rounded-lg hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
-          >
-            Contact
-          </button>
-        </nav>
+            <button
+              onClick={() => setShowContactModal(true)}
+              className="px-3 py-1.5 rounded-lg hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
+            >
+              Contact
+            </button>
+          </nav>
+        )}
 
-        {/* Right side CTAs: Sign in & Get Started */}
-        <div className="flex items-center gap-2.5 flex-shrink-0">
+        {/* Right side CTAs */}
+        <div className="flex items-center gap-2.5 flex-shrink-0 z-10">
           {user ? (
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700/80 text-xs text-slate-200 shadow-xs">
-                <div className="w-5 h-5 rounded-full bg-blue-600/30 text-blue-400 border border-blue-500/40 flex items-center justify-center font-bold text-[10px]">
+              <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-200 shadow-xs ring-1 ring-white/[0.04]">
+                <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 text-white flex items-center justify-center font-bold text-[10px] shadow-sm ring-1 ring-white/20">
                   {user.name ? user.name.trim()[0].toUpperCase() : "U"}
                 </div>
                 <div className="flex flex-col text-left">
-                  <span className="font-semibold text-white leading-none truncate max-w-[130px]" title={user.name}>
+                  <span className="font-semibold text-white leading-none truncate max-w-[120px]" title={user.name}>
                     {user.name}
                   </span>
-                  <span className="text-[10px] text-slate-400 leading-tight truncate max-w-[130px]" title={user.email}>
+                  <span className="text-[10px] text-slate-400 leading-tight truncate max-w-[120px]" title={user.email}>
                     {user.email}
                   </span>
                 </div>
@@ -390,17 +541,17 @@ export function Navbar({
 
               <Link
                 href="/history"
-                className="px-3 py-1.5 rounded-xl text-xs font-semibold text-blue-300 bg-blue-950/60 hover:bg-blue-900/60 border border-blue-700/60 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-200 bg-slate-900/80 hover:bg-slate-800 hover:text-white border border-slate-700/60 hover:border-blue-500/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs group"
                 title="View your saved forms, past submissions, and legal audit reports"
               >
-                <FileTextIcon size={13} className="text-blue-400" />
+                <FileTextIcon size={13} className="text-blue-400 group-hover:text-blue-300 transition-colors" />
                 <span>My Forms</span>
               </Link>
 
               {user.role === "admin" && (
                 <Link
                   href="/admin"
-                  className="px-3 py-1.5 rounded-xl text-xs font-semibold text-emerald-300 bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-700/60 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-emerald-300 bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-700/60 hover:border-emerald-500/60 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <ShieldCheckIcon size={13} className="text-emerald-400" />
                   <span>Admin</span>
@@ -410,16 +561,16 @@ export function Navbar({
               {hasForm && onReset && (
                 <button
                   onClick={onReset}
-                  className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-200 bg-slate-900/80 hover:bg-slate-800 hover:text-white border border-slate-700/60 hover:border-slate-500 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs group"
                 >
-                  <FileTextIcon size={13} className="text-blue-400" />
+                  <UploadIcon size={13} className="text-slate-400 group-hover:text-white transition-colors" />
                   <span>New Form</span>
                 </button>
               )}
 
               <button
                 onClick={handleSignOut}
-                className="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:text-red-400 hover:bg-slate-900 border border-slate-800 hover:border-red-900/50 transition-colors cursor-pointer"
+                className="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-all cursor-pointer"
               >
                 Sign out
               </button>
@@ -429,9 +580,9 @@ export function Navbar({
               {hasForm && onReset && (
                 <button
                   onClick={onReset}
-                  className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-200 bg-slate-900/90 hover:bg-slate-800 hover:text-white border border-slate-800 hover:border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
-                  <FileTextIcon size={13} className="text-blue-400" />
+                  <FileTextIcon size={13} className="text-slate-400" />
                   <span>New Form</span>
                 </button>
               )}
@@ -445,7 +596,7 @@ export function Navbar({
 
               <button
                 onClick={() => setShowSignUpModal(true)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition-all flex items-center gap-1.5 cursor-pointer hover:scale-[1.02]"
+                className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-md shadow-blue-500/20 transition-all flex items-center gap-1.5 cursor-pointer hover:scale-[1.02]"
               >
                 <span>Create Account</span>
                 <span className="text-xs">→</span>
@@ -1009,6 +1160,18 @@ export function Navbar({
           </div>
         </div>
       )}
+
+      {/* Demo Calendar Booking Modal */}
+      <DemoModal
+        isOpen={showDemoModal}
+        onClose={() => setShowDemoModal(false)}
+      />
+
+      {/* FAQ Modal */}
+      <FaqModal
+        isOpen={showFaqModal}
+        onClose={() => setShowFaqModal(false)}
+      />
     </>
   );
 }

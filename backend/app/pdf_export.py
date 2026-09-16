@@ -136,16 +136,16 @@ def export_filled_pdf(
         raw_values[raw] = val
         written += 1
 
-    # Write to all pages with flatten=True to burn rendered text/checkboxes
-    # into the PDF vector content stream so values are visible in any viewer.
+    # Write to all pages. Do not flatten to avoid double-rendering / ghost text blur;
+    # removing XFA and setting NeedAppearances ensures crisp native AcroForm appearance.
     for page in writer.pages:
         try:
-            writer.update_page_form_field_values(page, raw_values, flatten=True)
+            writer.update_page_form_field_values(page, raw_values)
         except Exception:
             logger.debug("Batch update failed on page, trying per-field", exc_info=True)
             for rname, rval in raw_values.items():
                 try:
-                    writer.update_page_form_field_values(page, {rname: rval}, flatten=True)
+                    writer.update_page_form_field_values(page, {rname: rval})
                 except Exception:
                     logger.debug("Failed to write field %s", rname, exc_info=True)
 

@@ -226,16 +226,45 @@ def _fuzzy_match(query: str) -> tuple[Optional[str], float]:
 # Stage 2 — embeddings
 # ---------------------------------------------------------------------------
 
+import hashlib as _hashlib
+from pathlib import Path as _Path
+
+# Cache alias embeddings to disk so the ~30s encode runs only on first launch.
+_CACHE_DIR = _Path(__file__).parent.parent / "data" / ".embed_cache"
+_ALIAS_HASH = _hashlib.md5("|".join(_ALIAS_STRINGS).encode()).hexdigest()[:12]
+_ALIAS_CACHE_PATH = _CACHE_DIR / f"alias_vecs_{_ALIAS_HASH}.npy"
+
+
 @lru_cache(maxsize=1)
 def _alias_embeddings():
-    """Embed every alias once; cached for the process lifetime."""
+    """Embed every alias once; persisted to disk so subsequent boots are instant."""
+    import numpy as np
+    # Fast path: load from disk cache
+    if _ALIAS_CACHE_PATH.exists():
+        try:
+            vecs = np.load(str(_ALIAS_CACHE_PATH))
+            logger.info("Loaded alias embeddings from disk cache (%d vectors)", len(vecs))
+            return vecs
+        except Exception:
+            pass
+
     m = _model()
     if m is None:
         return None
-    return m.encode(_ALIAS_STRINGS, convert_to_numpy=True, normalize_embeddings=True)
+
+    logger.info("Computing alias embeddings for first time (this takes ~30s on CPU)...")
+    vecs = m.encode(_ALIAS_STRINGS, convert_to_numpy=True, normalize_embeddings=True,
+                    batch_size=64, show_progress_bar=False)
+    try:
+        _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        np.save(str(_ALIAS_CACHE_PATH), vecs)
+        logger.info("Alias embeddings saved to disk cache: %s", _ALIAS_CACHE_PATH)
+    except Exception as exc:
+        logger.warning("Could not save alias embeddings to disk: %s", exc)
+    return vecs
 
 
-def _embed_match(query: str) -> tuple[Optional[str], float]:
+def _embed_match(query: str, precomputed: dict | None = None) -> tuple[Optional[str], float]:
     m = _model()
     if m is None or not query:
         return None, 0.0
@@ -243,7 +272,10 @@ def _embed_match(query: str) -> tuple[Optional[str], float]:
     if alias_vecs is None:
         return None, 0.0
     import numpy as np
-    qv = m.encode([query], convert_to_numpy=True, normalize_embeddings=True)[0]
+    if precomputed is not None and query in precomputed:
+        qv = precomputed[query]
+    else:
+        qv = m.encode([query], convert_to_numpy=True, normalize_embeddings=True)[0]
     sims = alias_vecs @ qv          # both normalised -> cosine similarity
     best_idx = int(np.argmax(sims))
     return _ALIAS_KEYS[best_idx], float(sims[best_idx])
@@ -265,12 +297,13 @@ class MatchResult:
         return f"<Match {self.fact_key} {self.score:.2f} via {self.method}>"
 
 
-def match_field(field: FormField, available_keys: set[str]) -> Optional[MatchResult]:
+def match_field(field: FormField, available_keys: set[str], precomputed: dict | None = None) -> Optional[MatchResult]:
     """
     Return the best fact key for this field, or None if nothing is confident.
 
     `available_keys` is what the profile actually knows — matching a field to a
     fact we have no value for is wasted work, so candidates are filtered to it.
+    `precomputed` maps query string -> numpy embedding vector (pre-batched for speed).
     """
     query = field_query(field)
     if not query or is_unmatchable(query):
@@ -295,8 +328,8 @@ def match_field(field: FormField, available_keys: set[str]) -> Optional[MatchRes
     if is_prose_query(query):
         return None
 
-    # Stage 2 — embeddings.
-    ekey, escore = _embed_match(query)
+    # Stage 2 — embeddings (use precomputed batch if available).
+    ekey, escore = _embed_match(query, precomputed=precomputed)
     if usable(ekey) and escore >= EMBED_ACCEPT:
         return MatchResult(ekey, escore, "embed")
 
@@ -305,3 +338,57 @@ def match_field(field: FormField, available_keys: set[str]) -> Optional[MatchRes
         return MatchResult(fkey, fscore / 100.0, "fuzzy-weak")
 
     return None
+
+
+def batch_embed_fields(fields: list[FormField]) -> dict:
+    """
+    Pre-embed all field queries in one batched model.encode() call.
+    Returns a dict mapping query_string -> numpy vector.
+    Results are cached to disk by content hash so repeat fills are instant.
+    """
+    import numpy as np
+
+    # Collect unique, non-empty queries that would reach the embed stage
+    unique_queries: list[str] = []
+    seen: set[str] = set()
+    for field in fields:
+        q = field_query(field)
+        if q and not is_unmatchable(q) and not is_prose_query(q) and q not in seen:
+            seen.add(q)
+            unique_queries.append(q)
+
+    if not unique_queries:
+        return {}
+
+    # Check disk cache — keyed by hash of the sorted queries
+    cache_key = _hashlib.md5("|".join(sorted(unique_queries)).encode()).hexdigest()[:12]
+    cache_path = _CACHE_DIR / f"fields_{cache_key}.npy"
+    queries_path = _CACHE_DIR / f"fields_{cache_key}_keys.txt"
+
+    if cache_path.exists() and queries_path.exists():
+        try:
+            vecs = np.load(str(cache_path))
+            keys = queries_path.read_text(encoding="utf-8").splitlines()
+            if len(keys) == len(vecs):
+                logger.info("Loaded %d field embeddings from disk cache", len(vecs))
+                return dict(zip(keys, vecs))
+        except Exception:
+            pass
+
+    m = _model()
+    if m is None:
+        return {}
+
+    logger.info("Batch-embedding %d unique field queries...", len(unique_queries))
+    vecs = m.encode(unique_queries, convert_to_numpy=True, normalize_embeddings=True,
+                    batch_size=64, show_progress_bar=False)
+    try:
+        _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        np.save(str(cache_path), vecs)
+        queries_path.write_text("\n".join(unique_queries), encoding="utf-8")
+        logger.info("Field embeddings saved to disk cache")
+    except Exception as exc:
+        logger.warning("Could not save field embeddings: %s", exc)
+
+    return dict(zip(unique_queries, vecs))
+

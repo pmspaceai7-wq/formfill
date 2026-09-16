@@ -34,8 +34,8 @@ def render_single_page(pdf_path: Path, page_num: int, out_dir: Path) -> Path | N
 
 def render_pages(pdf_path: Path, out_dir: Path, max_initial: int = 3) -> list[dict]:
     """
-    Fast initial page render. Renders the first few pages synchronously for instant view,
-    and returns page dimensions. Remaining pages are rendered on demand in ~30ms.
+    Fast initial page render. Renders the first few pages synchronously for instant view;
+    remaining pages are recorded by dimension only (no rendering) and served on demand.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     pdf = pdfium.PdfDocument(str(pdf_path))
@@ -47,12 +47,14 @@ def render_pages(pdf_path: Path, out_dir: Path, max_initial: int = 3) -> list[di
         width_pts = page.get_width()
         height_pts = page.get_height()
 
-        # Render first max_initial pages immediately for instant first-screen display
         if i < max_initial:
+            # Render immediately so the first screen is instant
             bitmap = page.render(scale=SCALE)
             pil_image = bitmap.to_pil()
             out_path = out_dir / f"page-{i + 1}.png"
             pil_image.save(str(out_path), format="PNG")
+        # No rendering for pages beyond max_initial — they are rendered on demand
+        # by render_single_page() when the user scrolls to them.
 
         result.append({
             "number": i + 1,
@@ -61,3 +63,4 @@ def render_pages(pdf_path: Path, out_dir: Path, max_initial: int = 3) -> list[di
         })
 
     return result
+

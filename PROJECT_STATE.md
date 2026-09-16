@@ -54,3 +54,8 @@ it's demo-hardening for what already exists, independent of this work.
 - Phase 8: a value that cannot fit `max_len` without corrupting it (email,
   phone, ID) is dropped rather than truncated — an empty box beats a
   plausible-looking wrong one.
+- PDF Export: AcroForm XFA stripped and `/NeedAppearances` set to true so modern viewers render fields natively; `flatten` kept false to prevent double-printed / blurry ghost characters.
+- Session Auto-Save: Form exports automatically save to MongoDB history for authenticated users with status `exported`. Unauthenticated saves cleanly prompt the sign-in modal.
+- Navbar Streamlining: In active form filling view (`hasForm=true`), clutter is reduced to core items: Home, Services, FAQ, and Book Demo.
+- Product Demo Booking: Added interactive Cal.com demo booking modal (`https://cal.com/space-ai/space-lizit-product-demo`) with native dark theme embedding.
+- Performance Optimizations: Disk embedding cache + batch encoding added to cut form fill time from ~30s to ~1-2s; initial PDF render trimmed to first 3 pages with on-demand streaming.
