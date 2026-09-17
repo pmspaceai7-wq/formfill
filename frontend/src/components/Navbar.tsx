@@ -474,12 +474,6 @@ export function Navbar({
               )}
             </div>
 
-            <button
-              onClick={() => setShowTemplatesModal(true)}
-              className="px-3 py-1.5 rounded-lg hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
-            >
-              Templates
-            </button>
 
             <button
               onClick={() => setShowPricingModal(true)}
@@ -947,7 +941,7 @@ export function Navbar({
               </div>
             )}
 
-            <form onSubmit={handleLoginSubmit} className="mt-4 space-y-3 text-xs">
+            <form onSubmit={handleLoginSubmit} autoComplete="off" className="mt-4 space-y-3 text-xs">
               <div>
                 <label className="block text-slate-400 mb-1 font-medium">Email Address</label>
                 <input
@@ -956,6 +950,7 @@ export function Navbar({
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   placeholder="name@company.com"
+                  autoComplete="off"
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 text-xs"
                 />
               </div>
@@ -969,6 +964,7 @@ export function Navbar({
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     placeholder="Enter your password"
+                    autoComplete="new-password"
                     className="w-full px-3 py-2 pr-9 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 text-xs"
                   />
                   <button
@@ -1050,7 +1046,7 @@ export function Navbar({
               </div>
             )}
 
-            <form onSubmit={handleSignUpSubmit} className="mt-4 space-y-3 text-xs">
+            <form onSubmit={handleSignUpSubmit} autoComplete="off" className="mt-4 space-y-3 text-xs">
               <div>
                 <label className="block text-slate-400 mb-1 font-medium">Full Name</label>
                 <input
@@ -1059,6 +1055,7 @@ export function Navbar({
                   value={signUpName}
                   onChange={(e) => setSignUpName(e.target.value)}
                   placeholder="Jane Doe"
+                  autoComplete="off"
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 text-xs"
                 />
               </div>
@@ -1071,6 +1068,7 @@ export function Navbar({
                   value={signUpEmail}
                   onChange={(e) => setSignUpEmail(e.target.value)}
                   placeholder="jane@company.com"
+                  autoComplete="off"
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 text-xs"
                 />
               </div>
@@ -1085,6 +1083,7 @@ export function Navbar({
                     value={signUpPassword}
                     onChange={(e) => setSignUpPassword(e.target.value)}
                     placeholder="Min. 8 chars, letters + numbers"
+                    autoComplete="new-password"
                     className="w-full px-3 py-2 pr-9 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 text-xs"
                   />
                   <button
