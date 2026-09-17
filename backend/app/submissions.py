@@ -65,6 +65,7 @@ class SubmissionDetail(BaseModel):
     conflicts: List[FieldConflict] = Field(default_factory=list)
     inferences: Dict[str, FieldInference] = Field(default_factory=dict)
     source_id: Optional[str] = None
+    form_schema: Optional[Dict[str, Any]] = None  # snapshot of schema at save time
 
 
 class SaveSubmissionRequest(BaseModel):
@@ -78,6 +79,7 @@ class SaveSubmissionRequest(BaseModel):
     source_id: Optional[str] = None
     status: Optional[str] = "filled"
     submission_id: Optional[str] = None  # If provided, update existing
+    form_schema: Optional[Dict[str, Any]] = None  # Snapshot of FormSchema for restore
 
 
 class UpdateSubmissionRequest(BaseModel):
@@ -151,6 +153,7 @@ def _serialize_detail(doc: dict) -> SubmissionDetail:
         conflicts=conflicts_list,
         inferences=inferences_dict,
         source_id=doc.get("source_id"),
+        form_schema=doc.get("form_schema"),  # may be None for old submissions
     )
 
 
@@ -227,6 +230,14 @@ async def save_submission(
         else {}
     )
 
+    # Capture a schema snapshot so "Open in Editor" works even after server files are gone.
+    # Prefer what's on disk (most complete); fall back to what the frontend sent.
+    form_schema_data: Optional[dict] = None
+    if schema_path.exists():
+        form_schema_data = read_json(schema_path)
+    elif payload.form_schema:
+        form_schema_data = payload.form_schema
+
     title = payload.title or payload.filename
 
     if payload.submission_id:
@@ -254,6 +265,9 @@ async def save_submission(
             update_fields["inferences"] = inferences_data
         if payload.source_id:
             update_fields["source_id"] = payload.source_id
+        # Only overwrite schema snapshot if we have a fresh one (don't erase old)
+        if form_schema_data and not existing.get("form_schema"):
+            update_fields["form_schema"] = form_schema_data
 
         await db.submissions.update_one(
             {"id": payload.submission_id},
@@ -279,10 +293,12 @@ async def save_submission(
         "conflicts": conflicts_data,
         "inferences": inferences_data,
         "source_id": payload.source_id,
+        "form_schema": form_schema_data,  # snapshot for editor restore
     }
 
     await db.submissions.insert_one(doc)
     return _serialize_detail(doc)
+
 
 
 @submissions_router.get(

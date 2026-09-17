@@ -89,24 +89,40 @@ export default function Home() {
 
     getSubmission(subId)
       .then(async (sub) => {
+        // 1. Try to load schema from the backend (form files may still exist)
+        let loadedSchema: FormSchema | null = null;
         try {
-          const loadedSchema = await getForm(sub.form_id);
-          setSchema(loadedSchema);
-          setValues(sub.values || {});
-          setAiValues(sub.values || {});
-          setActiveSubmissionId(sub.id);
-          setIsSaved(true);
-          if (sub.source_id) {
-            setSourceId(sub.source_id);
-          }
-          setState("loaded");
+          loadedSchema = await getForm(sub.form_id);
         } catch {
-          setError("Failed to load base form schema for this submission.");
-          setState("error");
+          // Form files gone (e.g. server restarted) — fall back to stored snapshot
+          if (sub.form_schema) {
+            loadedSchema = sub.form_schema as unknown as FormSchema;
+          }
         }
+
+        if (!loadedSchema) {
+          setError(
+            "This form's files are no longer on the server. " +
+            "Please re-upload the original PDF to edit it again."
+          );
+          setState("error");
+          return;
+        }
+
+        setSchema(loadedSchema);
+        setValues(sub.values || {});
+        setAiValues(sub.values || {});
+        setActiveSubmissionId(sub.id);
+        setIsSaved(true);
+        if (sub.source_id) {
+          setSourceId(sub.source_id);
+        }
+        setState("loaded");
       })
       .catch((err) => {
         console.error("Failed to load submission:", err);
+        setError("Failed to load this submission. Please try again.");
+        setState("error");
       });
   }, []);
 
@@ -360,6 +376,7 @@ export default function Home() {
             source_id: sourceId,
             submission_id: activeSubmissionId ?? undefined,
             status: "exported",
+            form_schema: schema as unknown as Record<string, unknown>,
           });
           setActiveSubmissionId(saved.id);
           setIsSaved(true);
@@ -533,6 +550,7 @@ export default function Home() {
         source_id: sourceId,
         submission_id: activeSubmissionId ?? undefined,
         status: "filled",
+        form_schema: schema as unknown as Record<string, unknown>,
       });
       setActiveSubmissionId(saved.id);
       setIsSaved(true);

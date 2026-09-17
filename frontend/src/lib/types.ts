@@ -215,6 +215,7 @@ export interface SubmissionDetail {
   conflicts: FieldConflict[];
   inferences: Record<string, FieldInference>;
   source_id?: string | null;
+  form_schema?: Record<string, unknown> | null;  // snapshot for editor restore
 }
 
 export interface SaveSubmissionRequest {
@@ -228,6 +229,7 @@ export interface SaveSubmissionRequest {
   source_id?: string | null;
   status?: "draft" | "filled" | "exported";
   submission_id?: string;
+  form_schema?: Record<string, unknown> | null;  // snapshot for editor restore
 }
 
 export interface UpdateSubmissionRequest {

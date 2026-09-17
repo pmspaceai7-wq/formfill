@@ -125,34 +125,8 @@ export function Toolbar({
               <ChevronRightIcon size={14} />
             </button>
           </div>
-
-          {/* Zoom Controls */}
-          <div className="hidden sm:flex items-center bg-slate-100 border border-slate-200 rounded-xl p-0.5 text-xs">
-            <button
-              onClick={onZoomOut}
-              disabled={zoom <= 0.5}
-              className="p-1 rounded-lg text-slate-600 hover:bg-white hover:text-slate-900 disabled:opacity-30 transition-all cursor-pointer"
-              title="Zoom Out"
-            >
-              <ZoomOutIcon size={13} />
-            </button>
-            <button
-              onClick={onZoomFit}
-              className="px-2 py-0.5 font-semibold text-slate-700 hover:bg-white rounded-md transition-all text-[11px] cursor-pointer"
-              title="Reset Zoom"
-            >
-              {Math.round(zoom * 100)}%
-            </button>
-            <button
-              onClick={onZoomIn}
-              disabled={zoom >= 3}
-              className="p-1 rounded-lg text-slate-600 hover:bg-white hover:text-slate-900 disabled:opacity-30 transition-all cursor-pointer"
-              title="Zoom In"
-            >
-              <ZoomInIcon size={13} />
-            </button>
-          </div>
         </div>
+
 
         {/* Center / Fill Status & Counter */}
         <div className="flex items-center gap-3 flex-shrink-0">
