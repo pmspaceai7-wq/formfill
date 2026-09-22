@@ -4,8 +4,10 @@ from __future__ import annotations
 import csv
 import io
 import logging
+import shutil
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -322,6 +324,46 @@ async def get_submission(
     doc = await db.submissions.find_one(query)
     if not doc:
         raise HTTPException(status_code=404, detail="Submission not found.")
+
+    # Auto-restore form assets and form_schema if missing
+    form_id = doc.get("form_id")
+    if form_id:
+        fdir = form_dir(form_id)
+        schema_path = fdir / "schema.json"
+        pdf_path = fdir / "original.pdf"
+
+        # If original.pdf missing, try to find in samples/
+        if not pdf_path.exists() and doc.get("filename"):
+            samples_dir = Path("samples").resolve()
+            if not samples_dir.exists():
+                samples_dir = Path("../samples").resolve()
+            found_pdf = None
+            for p in samples_dir.rglob("*.pdf"):
+                if p.name.lower() == doc["filename"].lower():
+                    found_pdf = p
+                    break
+            if not found_pdf and ("i129" in doc["filename"].lower() or "i-129" in doc["filename"].lower()):
+                cand = samples_dir / "i129_sample_form.pdf"
+                if cand.exists():
+                    found_pdf = cand
+            if found_pdf and found_pdf.exists():
+                shutil.copy2(str(found_pdf), str(pdf_path))
+
+        # If form_schema is missing from doc, restore from disk schema or parse PDF
+        if not doc.get("form_schema"):
+            if schema_path.exists():
+                schema_data = read_json(schema_path)
+                doc["form_schema"] = schema_data
+                await db.submissions.update_one({"id": submission_id}, {"$set": {"form_schema": schema_data}})
+            elif pdf_path.exists():
+                try:
+                    from app.main import _process_pdf_and_create_schema
+                    schema_obj = _process_pdf_and_create_schema(pdf_path, doc.get("filename", "form.pdf"), form_id)
+                    schema_data = schema_obj.model_dump()
+                    doc["form_schema"] = schema_data
+                    await db.submissions.update_one({"id": submission_id}, {"$set": {"form_schema": schema_data}})
+                except Exception:
+                    pass
 
     return _serialize_detail(doc)
 

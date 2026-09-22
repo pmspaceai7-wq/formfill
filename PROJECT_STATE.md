@@ -1,6 +1,6 @@
 # Project State
 
-**Current phase:** 7
+**Current phase:** Complete (Phases 0–9 Done)
 
 | # | Phase | Status |
 |---|---|---|
@@ -11,9 +11,9 @@
 | 4 | AI fill (backend) | done |
 | 5 | Wire fill into UI | done |
 | 6 | Export filled PDF | done |
-| 7 | Make it hold together | not started |
+| 7 | Make it hold together | done |
 | 8 | Local intelligence engine (embeddings/NER matching, persistent profile) | done |
-| 9 | Profile UX (fill-once-reuse-forever, visible) | not started |
+| 9 | Profile UX (fill-once-reuse-forever, visible) | done |
 
 ## Phase 8 & Intelligence Engine measured results
 
@@ -59,6 +59,10 @@ it's demo-hardening for what already exists, independent of this work.
 - Navbar Streamlining: In active form filling view (`hasForm=true`), clutter is reduced to core items: Home, Services, FAQ, and Book Demo.
 - Product Demo Booking: Added interactive Cal.com demo booking modal (`https://cal.com/space-ai/space-lizit-product-demo`) with native dark theme embedding.
 - Performance Optimizations: Disk embedding cache + batch encoding added to cut form fill time from ~30s to ~1-2s; initial PDF render trimmed to first 3 pages with on-demand streaming.
+- Enterprise Landing Page & Regulatory AcroForm Registry: Center-aligned corporate hero and catalog layout, eliminated harsh black elements and electric blue in favor of royal indigo brand theme, added high-converting corporate executive testimonials and quotes, anti-bot visual document card headers with comb-box indicators, and in-hero quick-action filers.
+- 1-Click Sample Applicant Data for Template Testing: Added `/api/sources/sample` endpoint, updated template cards from misleading 'Auto-Fill Form' to 'Open Template', and added 1-click 'Load Sample Applicant Data' button in SourcePanel and canvas guidance banner so users can immediately test auto-filling any loaded template.
+- Expanded Regulatory Form Registry (20+ Official Filings): Ingested all 16 filings from the user's USCIS/DOL/DOS infographic. Downloaded and calibrated official fillable AcroForm PDFs for I-130 (450 fields), I-864 (219 fields), I-539 (159 fields), I-751 (329 fields), I-829 (359 fields), N-400 (440 fields), IRS W-9 (23 fields), and IRS W-4 (48 fields). Injected 'Relevant for' badge onto every card, updated segmented category tabs (Work & Petitions, Family & Relatives, Green Card & Status, Travel & Parole, Citizenship & Consular), and enabled instant keyword filtering across codes, descriptions, and eligibility criteria.
+- Adaptive Form Catalog Cards: Implemented dual-mode card presentation. In 'All Filings' overview, cards are compact, sleek, and streamlined (hiding lengthy paragraphs and green criteria boxes) to prevent visual overcrowding across 20+ forms. When any specific category is selected, cards adapt to display comprehensive details, including the official 'Relevant for' badge, full descriptions, and micro-indicator status bars.
 
 ## Pre-Deployment Test Run — 2026-09-16 — PASSED ✅
 

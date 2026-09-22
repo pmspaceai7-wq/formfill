@@ -21,6 +21,17 @@ function getBase(): string {
   return "http://localhost:8001";
 }
 
+async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (err) {
+    if (err instanceof TypeError) {
+      throw new Error("Could not connect to the backend server. Please verify it is running on port 8001.");
+    }
+    throw err;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Auth helpers
 // ---------------------------------------------------------------------------
@@ -85,7 +96,7 @@ export async function registerUser(
 }
 
 export async function getMe(token: string): Promise<AuthUser> {
-  const res = await fetch(`${getBase()}/api/auth/me`, {
+  const res = await apiFetch(`${getBase()}/api/auth/me`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error("Not authenticated");
@@ -95,7 +106,7 @@ export async function getMe(token: string): Promise<AuthUser> {
 export async function uploadForm(file: File): Promise<FormSchema> {
   const body = new FormData();
   body.append("file", file);
-  const res = await fetch(`${getBase()}/api/forms`, {
+  const res = await apiFetch(`${getBase()}/api/forms`, {
     method: "POST",
     headers: { ...authHeaders() },
     body,
@@ -108,7 +119,7 @@ export async function uploadForm(file: File): Promise<FormSchema> {
 }
 
 export async function getForm(formId: string): Promise<FormSchema> {
-  const res = await fetch(`${getBase()}/api/forms/${formId}`);
+  const res = await apiFetch(`${getBase()}/api/forms/${formId}`);
   if (!res.ok) throw new Error("Form not found");
   return res.json();
 }
@@ -124,7 +135,7 @@ export async function uploadSources(
   const body = new FormData();
   for (const f of files) body.append("files", f);
   if (text.trim()) body.append("text", text.trim());
-  const res = await fetch(`${getBase()}/api/sources`, { method: "POST", body });
+  const res = await apiFetch(`${getBase()}/api/sources`, { method: "POST", body });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "Upload failed" }));
     throw new Error(err.error ?? err.detail ?? "Upload failed");
@@ -133,7 +144,7 @@ export async function uploadSources(
 }
 
 export async function getSource(sourceId: string): Promise<SourceSummary> {
-  const res = await fetch(`${getBase()}/api/sources/${sourceId}`);
+  const res = await apiFetch(`${getBase()}/api/sources/${sourceId}`);
   if (!res.ok) throw new Error("Source not found");
   return res.json();
 }
@@ -143,7 +154,7 @@ export async function getSourceFile(
   filename: string
 ): Promise<{ filename: string; lines: string[] }> {
   const sid = sourceId && sourceId.trim() ? sourceId : "any";
-  const res = await fetch(
+  const res = await apiFetch(
     `${getBase()}/api/sources/${encodeURIComponent(sid)}/file/${encodeURIComponent(filename)}`
   );
   if (!res.ok) throw new Error("File not found");
@@ -154,7 +165,7 @@ export async function startFill(formId: string, sourceId: string): Promise<FillS
   const body = new FormData();
   body.append("form_id", formId);
   body.append("source_id", sourceId);
-  const res = await fetch(`${getBase()}/api/fill`, {
+  const res = await apiFetch(`${getBase()}/api/fill`, {
     method: "POST",
     headers: { ...authHeaders() },
     body,
@@ -229,7 +240,7 @@ export async function exportPdf(
   const body = new FormData();
   body.append("form_id", formId);
   body.append("values_json", JSON.stringify(values));
-  const res = await fetch(`${getBase()}/api/export`, { method: "POST", body });
+  const res = await apiFetch(`${getBase()}/api/export`, { method: "POST", body });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Export failed" }));
     throw new Error(err.detail ?? "Export failed");
@@ -242,14 +253,14 @@ export async function exportPdf(
 // ---------------------------------------------------------------------------
 
 export async function getTemplates(): Promise<TemplateItem[]> {
-  const res = await fetch(`${getBase()}/api/templates`);
+  const res = await apiFetch(`${getBase()}/api/templates`);
   if (!res.ok) throw new Error("Failed to load template catalog");
   const data: TemplateListResponse = await res.json();
   return data.templates;
 }
 
 export async function loadDemoTemplate(): Promise<DemoLoadResponse> {
-  const res = await fetch(`${getBase()}/api/templates/demo`, { method: "POST" });
+  const res = await apiFetch(`${getBase()}/api/templates/demo`, { method: "POST" });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Failed to load demo" }));
     throw new Error(err.detail ?? "Failed to load demo");
@@ -258,12 +269,23 @@ export async function loadDemoTemplate(): Promise<DemoLoadResponse> {
 }
 
 export async function loadTemplateById(templateId: string): Promise<FormSchema> {
-  const res = await fetch(`${getBase()}/api/templates/${templateId}/load`, {
+  const res = await apiFetch(`${getBase()}/api/templates/${templateId}/load`, {
     method: "POST",
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Failed to load template" }));
     throw new Error(err.detail ?? "Failed to load template");
+  }
+  return res.json();
+}
+
+export async function loadSampleSource(): Promise<SourceSummary> {
+  const res = await apiFetch(`${getBase()}/api/sources/sample`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to load sample sources" }));
+    throw new Error(err.detail ?? "Failed to load sample sources");
   }
   return res.json();
 }

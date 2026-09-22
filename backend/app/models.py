@@ -52,6 +52,7 @@ class TemplateItem(BaseModel):
     required_sources: list[str]
     is_demo_ready: bool = False
     tags: list[str] = []
+    pdf_file: Optional[str] = None   # relative path under samples/templates/ — None = not yet available
 
 
 class TemplateListResponse(BaseModel):

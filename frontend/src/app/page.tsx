@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import {
   uploadForm,
   getForm,
@@ -8,6 +9,7 @@ import {
   getProfile,
   loadDemoTemplate,
   loadTemplateById,
+  loadSampleSource,
   getSubmission,
   saveSubmission,
 } from "@/lib/api";
@@ -18,6 +20,7 @@ import { Toolbar } from "@/components/Toolbar";
 import { PdfPage } from "@/components/PdfPage";
 import { FieldOverlay } from "@/components/FieldOverlay";
 import { SourcePanel } from "@/components/SourcePanel";
+import type { SourcePanelHandle } from "@/components/SourcePanel";
 import { ProfileDrawer } from "@/components/ProfileDrawer";
 import { TemplatesModal } from "@/components/TemplatesModal";
 import { SourceFileViewerModal } from "@/components/SourceFileViewerModal";
@@ -25,7 +28,7 @@ import { useFillJob } from "@/hooks/useFillJob";
 import { useAuth } from "@/lib/AuthContext";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { AuditTrailModal } from "@/components/AuditTrailModal";
-import { AlertCircleIcon, RefreshCwIcon } from "@/components/Icons";
+import { AlertCircleIcon, RefreshCwIcon, SparklesIcon } from "@/components/Icons";
 
 type State = "empty" | "uploading" | "loaded" | "error";
 
@@ -68,11 +71,12 @@ export default function Home() {
   const [loadingTemplateId, setLoadingTemplateId] = useState<string | null>(null);
 
   const fillJob = useFillJob();
-  const { user, refreshUser } = useAuth();
+  const { user, loading: authLoading, refreshUser } = useAuth();
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [authModalTrigger, setAuthModalTrigger] = useState<"login" | "signup" | null>(null);
   const lastEmptyFieldIdRef = useRef<string | null>(null);
   const lastConflictFieldIdRef = useRef<string | null>(null);
+  const sourcePanelRef = useRef<SourcePanelHandle>(null);
 
   // Submissions & Audit State
   const [activeSubmissionId, setActiveSubmissionId] = useState<string | null>(null);
@@ -87,9 +91,20 @@ export default function Home() {
     const subId = params.get("submission_id");
     if (!subId) return;
 
+    // Wait until auth state is determined
+    if (authLoading) return;
+
+    if (!user) {
+      setError("Please sign in with your business email to open this saved submission.");
+      setAuthModalTrigger("login");
+      setState("error");
+      return;
+    }
+
+    setState("uploading");
     getSubmission(subId)
       .then(async (sub) => {
-        // 1. Try to load schema from the backend (form files may still exist)
+        // 1. Try to load schema from the backend (form files may still exist or be auto-restored)
         let loadedSchema: FormSchema | null = null;
         try {
           loadedSchema = await getForm(sub.form_id);
@@ -102,8 +117,7 @@ export default function Home() {
 
         if (!loadedSchema) {
           setError(
-            "This form's files are no longer on the server. " +
-            "Please re-upload the original PDF to edit it again."
+            "This form's schema is not available. Please re-upload the original PDF to edit it."
           );
           setState("error");
           return;
@@ -121,10 +135,18 @@ export default function Home() {
       })
       .catch((err) => {
         console.error("Failed to load submission:", err);
-        setError("Failed to load this submission. Please try again.");
+        const msg = err instanceof Error ? err.message : "Failed to load this submission.";
+        if (msg.includes("Authentication required") || msg.includes("401")) {
+          setError("Your session expired. Please sign in to open this submission.");
+          setAuthModalTrigger("login");
+        } else if (msg.includes("not found") || msg.includes("404")) {
+          setError("Submission not found. It may have been deleted or belongs to another account.");
+        } else {
+          setError(msg);
+        }
         setState("error");
       });
-  }, []);
+  }, [authLoading, user]);
 
   // Automatically show upgrade modal if API returns quota exceeded (402)
   useEffect(() => {
@@ -486,6 +508,13 @@ export default function Home() {
   );
 
   const resetAll = useCallback(() => {
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has("submission_id")) {
+        url.searchParams.delete("submission_id");
+        window.history.replaceState({}, "", url.pathname);
+      }
+    }
     setSchema(null);
     setState("empty");
     setError("");
@@ -515,7 +544,7 @@ export default function Home() {
       ? Math.max(0, (user.free_tier_limit ?? 1) - (user.forms_filled_count ?? 0))
       : null;
 
-  const handleFill = useCallback(() => {
+  const handleFill = useCallback(async () => {
     if (!schema) return;
     if (!user) {
       alert("Please sign in with your business email to fill forms.");
@@ -527,8 +556,19 @@ export default function Home() {
       setUpgradeModalOpen(true);
       return;
     }
+    // Auto-submit pasted text if user hasn't clicked "Extract" yet
+    if (sourcePanelRef.current) {
+      await sourcePanelRef.current.submitIfNeeded();
+    }
+    // Check if user has any source documents or profile facts
+    if (!sourceId && factCount === 0) {
+      alert(
+        "No source documents attached yet.\n\nPlease upload candidate documents (resume, passport, etc.) or click 'Load Sample Applicant' in the Source panel on the left to test auto-filling."
+      );
+      return;
+    }
     fillJob.start(schema.form_id, sourceId ?? "");
-  }, [schema, user, sourceId, fillJob]);
+  }, [schema, user, sourceId, factCount, fillJob]);
 
   const handleSaveSubmission = useCallback(async () => {
     if (!schema) return;
@@ -640,6 +680,8 @@ export default function Home() {
           onClearError={() => setError("")}
           isLoggedIn={Boolean(user)}
           onRequireAuth={() => setAuthModalTrigger("signup")}
+          onTemplateSelect={handleLoadTemplate}
+          isTemplateLoading={Boolean(loadingTemplateId)}
         />
       ) : state === "error" ? (
         <div className="flex-1 flex flex-col items-center justify-center p-6 bg-slate-50 text-slate-800">
@@ -649,17 +691,21 @@ export default function Home() {
             </div>
             <h2 className="text-xl font-bold text-slate-900">Form Error</h2>
             <p className="text-sm text-slate-600 leading-relaxed">{error}</p>
-            <div className="pt-2">
+            <div className="pt-2 flex flex-col gap-2">
               <button
                 className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                onClick={() => {
-                  setError("");
-                  setState("empty");
-                }}
+                onClick={resetAll}
               >
                 <RefreshCwIcon size={14} />
-                Try Another PDF
+                <span>Try Another PDF</span>
               </button>
+              <Link
+                href="/history"
+                onClick={resetAll}
+                className="w-full py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>← Back to My Forms</span>
+              </Link>
             </div>
           </div>
         </div>
@@ -711,7 +757,14 @@ export default function Home() {
             {/* Left Source Documents Studio Panel — sticks while the page scrolls */}
             <div className="flex-shrink-0 z-20 sticky top-[104px] self-start max-h-[calc(100vh-104px)]">
               <SourcePanel
+                ref={sourcePanelRef}
                 onSourceReady={(id) => setSourceId(id)}
+                onSourceSummaryReady={(summary) => {
+                  setSourceSummary(summary);
+                  if (summary.facts_total !== undefined) {
+                    setFactCount(summary.facts_total);
+                  }
+                }}
                 initialSummary={sourceSummary}
               />
             </div>
@@ -719,8 +772,38 @@ export default function Home() {
             {/* Center Canvas PDF Viewer */}
             <div
               ref={overlayRef}
-              className="flex-1 min-w-0 overflow-x-auto flex justify-center items-start p-6 bg-slate-200/80"
+              className="flex-1 min-w-0 overflow-x-auto flex flex-col items-center p-6 bg-slate-200/80 gap-4"
             >
+              {/* Guidance banner when form is loaded with no source documents attached */}
+              {!sourceId && factCount === 0 && (
+                <div className="w-full max-w-2xl px-4 py-3 bg-white/95 backdrop-blur border border-indigo-200/90 rounded-2xl shadow-xs flex items-center justify-between gap-4 animate-fade-in">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="text-base flex-shrink-0">💡</span>
+                    <p className="text-xs text-slate-700 leading-snug">
+                      <strong>How auto-fill works:</strong> Attach candidate documents on the left, or load sample applicant data to test auto-filling this form.
+                    </p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const sample = await loadSampleSource();
+                        setSourceId(sample.source_id);
+                        setSourceSummary(sample);
+                        if (sample.facts_total !== undefined) {
+                          setFactCount(sample.facts_total);
+                        }
+                      } catch (e) {
+                        alert(e instanceof Error ? e.message : "Failed to load sample sources");
+                      }
+                    }}
+                    className="flex-shrink-0 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer hover:scale-[1.02]"
+                  >
+                    <SparklesIcon size={13} />
+                    <span>Load Sample Applicant</span>
+                  </button>
+                </div>
+              )}
+
               <div className="relative inline-block shadow-2xl rounded-lg bg-white overflow-hidden border border-slate-300">
                 <PdfPage
                   formId={schema!.form_id}

@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useCallback, useRef, useState } from "react";
-import { uploadSources } from "@/lib/api";
+import React, { useCallback, useImperativeHandle, useRef, useState } from "react";
+import { uploadSources, loadSampleSource } from "@/lib/api";
 import type { SourceSummary } from "@/lib/types";
 import {
   UploadIcon,
@@ -23,10 +23,17 @@ interface FileRow {
 
 interface Props {
   onSourceReady: (sourceId: string) => void;
+  onSourceSummaryReady?: (summary: SourceSummary) => void;
   initialSummary?: SourceSummary | null;
 }
 
-export function SourcePanel({ onSourceReady, initialSummary }: Props) {
+export interface SourcePanelHandle {
+  /** Uploads pasted text if there is unsaved content and no source yet. Returns true if upload was triggered. */
+  submitIfNeeded: () => Promise<boolean>;
+}
+
+export const SourcePanel = React.forwardRef<SourcePanelHandle, Props>(
+  function SourcePanel({ onSourceReady, onSourceSummaryReady, initialSummary }, ref) {
   const [rows, setRows] = useState<FileRow[]>([]);
   const [warnings, setWarnings] = useState<{ file: string; warning: string }[]>([]);
   const [pastedText, setPastedText] = useState("");
@@ -110,6 +117,34 @@ export function SourcePanel({ onSourceReady, initialSummary }: Props) {
     }
   };
 
+  const [loadingSample, setLoadingSample] = useState(false);
+
+  const handleLoadSample = async () => {
+    setLoadingSample(true);
+    try {
+      const summary = await loadSampleSource();
+      setSourceId(summary.source_id);
+      setWarnings(summary.warnings || []);
+      setLearned({
+        added: summary.facts_learned ?? 0,
+        total: summary.facts_total ?? 0,
+      });
+      setRows(
+        summary.items.map((it) => ({
+          name: it.name,
+          size: it.chars,
+          chars: it.chars,
+        }))
+      );
+      onSourceReady(summary.source_id);
+      onSourceSummaryReady?.(summary);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to load sample applicant packet");
+    } finally {
+      setLoadingSample(false);
+    }
+  };
+
   const reset = () => {
     stagedFiles.current = [];
     setRows([]);
@@ -118,6 +153,18 @@ export function SourcePanel({ onSourceReady, initialSummary }: Props) {
     setSourceId(null);
     setLearned(null);
   };
+
+  // Expose submitIfNeeded so parent (page.tsx) can auto-submit before starting fill
+  useImperativeHandle(ref, () => ({
+    submitIfNeeded: async () => {
+      // Already submitted — nothing to do
+      if (sourceId) return false;
+      // Nothing to submit
+      if (stagedFiles.current.length === 0 && !pastedText.trim()) return false;
+      await submit();
+      return true;
+    },
+  }));
 
   return (
     <div className="w-80 h-full max-h-[calc(100vh-104px)] bg-white border-r border-slate-200 flex flex-col p-4 gap-4 text-xs select-none shadow-sm overflow-y-auto">
@@ -198,6 +245,32 @@ export function SourcePanel({ onSourceReady, initialSummary }: Props) {
             <FolderIcon size={14} className="text-slate-500" />
             <span>Select Folder of Documents</span>
           </button>
+
+          {/* Quick 1-Click Sample Test Packet */}
+          {!sourceId && rows.length === 0 && (
+            <div className="pt-1">
+              <button
+                onClick={handleLoadSample}
+                disabled={loadingSample}
+                className="w-full py-2 px-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs group"
+              >
+                {loadingSample ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                    <span>Loading Sample Applicant…</span>
+                  </>
+                ) : (
+                  <>
+                    <SparklesIcon size={13} className="text-indigo-600 group-hover:rotate-12 transition-transform" />
+                    <span>⚡ Load Sample Applicant Data</span>
+                  </>
+                )}
+              </button>
+              <p className="text-[10px] text-slate-400 text-center mt-1">
+                Attach pre-calibrated documents to test auto-filling
+              </p>
+            </div>
+          )}
 
           <input
             ref={fileInputRef}
@@ -351,4 +424,4 @@ export function SourcePanel({ onSourceReady, initialSummary }: Props) {
       </div>
     </div>
   );
-}
+});

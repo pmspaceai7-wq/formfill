@@ -96,6 +96,8 @@ def _process_pdf_and_create_schema(pdf_path: Path, filename: str, form_id: str) 
     fdir = form_dir(form_id)
     try:
         schema = parse_form(pdf_path)
+        if not schema.fields:
+            raise NoAcroFormError("PDF has no fillable fields")
     except NoAcroFormError:
         shutil.rmtree(fdir, ignore_errors=True)
         raise HTTPException(
@@ -198,6 +200,67 @@ async def upload_form(
 
 
 # ---------------------------------------------------------------------------
+# Auto-restore missing form assets from samples/templates or MongoDB
+# ---------------------------------------------------------------------------
+
+async def _restore_form_if_needed(form_id: str) -> bool:
+    """If original.pdf or schema.json is missing for form_id, restore from samples or MongoDB."""
+    fdir = form_dir(form_id)
+    pdf_path = fdir / "original.pdf"
+    schema_path = fdir / "schema.json"
+
+    if pdf_path.exists() and schema_path.exists():
+        return True
+
+    filename: Optional[str] = None
+    stored_schema: Optional[dict] = None
+    try:
+        from app.auth import get_db
+        db = get_db()
+        doc = await db.submissions.find_one({"form_id": form_id})
+        if doc:
+            filename = doc.get("filename")
+            stored_schema = doc.get("form_schema")
+    except Exception:
+        pass
+
+    samples_dir = _find_samples_dir()
+
+    # If original.pdf missing, try finding the file in samples
+    if not pdf_path.exists() and samples_dir.exists():
+        found_pdf: Optional[Path] = None
+        if filename:
+            for p in samples_dir.rglob("*.pdf"):
+                if p.name.lower() == filename.lower():
+                    found_pdf = p
+                    break
+            if not found_pdf and ("i129" in filename.lower() or "i-129" in filename.lower()):
+                cand = samples_dir / "i129_sample_form.pdf"
+                if cand.exists():
+                    found_pdf = cand
+
+        if not found_pdf:
+            cand = samples_dir / "i129_sample_form.pdf"
+            if cand.exists():
+                found_pdf = cand
+
+        if found_pdf and found_pdf.exists():
+            shutil.copy2(str(found_pdf), str(pdf_path))
+
+    # If schema.json missing, write stored_schema or generate from PDF
+    if not schema_path.exists():
+        if stored_schema:
+            write_json(schema_path, stored_schema)
+        elif pdf_path.exists():
+            try:
+                _process_pdf_and_create_schema(pdf_path, filename or pdf_path.name, form_id)
+            except Exception:
+                pass
+
+    return schema_path.exists()
+
+
+# ---------------------------------------------------------------------------
 # GET /api/forms/{form_id}  — retrieve stored schema
 # ---------------------------------------------------------------------------
 
@@ -209,6 +272,8 @@ async def upload_form(
 async def get_form(form_id: str) -> FormSchema:
     fdir = form_dir(form_id)
     schema_path = fdir / "schema.json"
+    if not schema_path.exists():
+        await _restore_form_if_needed(form_id)
     if not schema_path.exists():
         raise HTTPException(status_code=404, detail="Form not found.")
     data = read_json(schema_path)
@@ -228,6 +293,9 @@ async def get_page_image(form_id: str, n: int) -> FileResponse:
     img_path = fdir / f"page-{n}.png"
     if not img_path.exists():
         pdf_path = fdir / "original.pdf"
+        if not pdf_path.exists():
+            await _restore_form_if_needed(form_id)
+            pdf_path = fdir / "original.pdf"
         if pdf_path.exists():
             render_single_page(pdf_path, n, fdir)
     if not img_path.exists():
@@ -694,154 +762,308 @@ class DemoLoadResponse(BaseModel):
 
 
 TEMPLATES_CATALOG: list[TemplateItem] = [
-    # ── Immigration (USCIS) ──
+    # ── Employment ──
+    TemplateItem(
+        id="uscis-i765",
+        code="Form I-765",
+        title="Application for Employment Authorization (EAD)",
+        category="Employment",
+        pages=7,
+        estimated_fields=142,
+        description="Application for noncitizens seeking permission to work legally in the US (OPT, STEM OPT, DACA, Pending I-485).",
+        required_sources=["Passport / Visa Copy", "Form I-94 Record", "Eligibility Category Details", "Prior EAD (if any)"],
+        is_demo_ready=False,
+        tags=["USCIS Official", "Work Authorization", "Checkboxes"],
+        pdf_file="templates/02_employment/I-765_Employment-Authorization.pdf",
+    ),
+    TemplateItem(
+        id="uscis-i9",
+        code="Form I-9",
+        title="Employment Eligibility Verification",
+        category="Employment",
+        pages=4,
+        estimated_fields=85,
+        description="Mandatory form used by all US employers to verify identity and employment authorization of hired workers.",
+        required_sources=["Full Legal Name & DOB", "SSN / Alien Registration", "List A/B/C Identity Document Numbers"],
+        is_demo_ready=False,
+        tags=["Mandatory HR", "Compliance", "Digit Comb Boxes"],
+        pdf_file="templates/02_employment/I-9_Employment-Eligibility-Verification.pdf",
+    ),
+
+    # ── Employer Petitions ──
     TemplateItem(
         id="uscis-i129",
-        code="USCIS Form I-129",
+        code="Form I-129",
         title="Petition for a Nonimmigrant Worker",
-        category="Immigration",
+        category="Employer Petitions",
         pages=38,
         estimated_fields=927,
         description="Official petition for specialty occupations, intracompany transferees, and professional visas (H-1B, L-1, O-1, P-1, TN, E-2).",
         required_sources=["Company FEIN / Financials", "Beneficiary Passport / I-94", "Job Offer / LCA Details", "Educational Degrees"],
         is_demo_ready=True,
         tags=["USCIS Official", "Comb Boxes", "Multi-Visa Supplement", "Full Demo Packet"],
+        pdf_file="templates/03_employer_petitions/I-129_Nonimmigrant-Worker-Petition.pdf",
     ),
     TemplateItem(
-        id="uscis-i765",
-        code="USCIS Form I-765",
-        title="Application for Employment Authorization (EAD)",
-        category="Immigration",
-        pages=7,
-        estimated_fields=142,
-        description="Application for noncitizens seeking permission to work legally in the United States (OPT, STEM OPT, DACA, Pending I-485).",
-        required_sources=["Passport / Visa Copy", "Form I-94 Record", "Eligibility Category Details", "Prior EAD (if any)"],
+        id="uscis-i129s",
+        code="Form I-129S",
+        title="Nonimmigrant Petition Based on Blanket L Petition",
+        category="Employer Petitions",
+        pages=6,
+        estimated_fields=120,
+        description="Used during the L-1 blanket petition process for intracompany transferees under an approved blanket L petition.",
+        required_sources=["Blanket Petition Approval Notice", "Beneficiary Qualifications", "Position Description"],
         is_demo_ready=False,
-        tags=["USCIS Official", "Work Authorization", "Checkboxes"],
+        tags=["USCIS Official", "L-1 Visa", "Intracompany Transfer"],
+        pdf_file="templates/03_employer_petitions/I-129S_L1-Blanket-Petition.pdf",
     ),
+    TemplateItem(
+        id="uscis-i140",
+        code="Form I-140",
+        title="Immigrant Petition for Alien Workers",
+        category="Employer Petitions",
+        pages=9,
+        estimated_fields=180,
+        description="Employer petition for an employment-based immigrant classification for a foreign national worker.",
+        required_sources=["Job Offer Letter", "Educational Credentials", "Labor Certification (if needed)", "Company Financials"],
+        is_demo_ready=False,
+        tags=["USCIS Official", "Green Card Pathway", "Employment-Based"],
+        pdf_file="templates/03_employer_petitions/I-140_Immigrant-Petition-Alien-Workers.pdf",
+    ),
+    TemplateItem(
+        id="uscis-i907",
+        code="Form I-907",
+        title="Request for Premium Processing Service",
+        category="Employer Petitions",
+        pages=3,
+        estimated_fields=45,
+        description="Request for USCIS to adjudicate a petition within 15 business days in exchange for an additional fee.",
+        required_sources=["Petitioner Name & Address", "Underlying Petition Receipt Number", "Contact Person Details"],
+        is_demo_ready=False,
+        tags=["USCIS Official", "Premium Processing", "Expedite"],
+        pdf_file="templates/03_employer_petitions/I-907_Premium-Processing.pdf",
+    ),
+
+    # ── Green Card ──
     TemplateItem(
         id="uscis-i485",
-        code="USCIS Form I-485",
+        code="Form I-485",
         title="Application to Register Permanent Residence (Green Card)",
-        category="Immigration",
+        category="Green Card",
         pages=20,
         estimated_fields=410,
         description="Application for permanent resident status (Green Card) through family or employment-based immigrant categories.",
         required_sources=["Birth Certificate", "Biographical Notes", "Immigration History", "Address & Employment History"],
         is_demo_ready=False,
         tags=["USCIS Official", "Adjustment of Status", "Comprehensive"],
+        pdf_file="templates/04_green_card/I-485_Adjustment-of-Status.pdf",
     ),
+    TemplateItem(
+        id="uscis-i693",
+        code="Form I-693",
+        title="Report of Medical Examination and Vaccination Record",
+        category="Green Card",
+        pages=11,
+        estimated_fields=155,
+        description="Medical examination form completed by a USCIS-designated civil surgeon for immigration purposes.",
+        required_sources=["Medical History", "Vaccination Records", "Physical Exam Results", "Civil Surgeon Details"],
+        is_demo_ready=False,
+        tags=["USCIS Official", "Medical Exam", "Civil Surgeon Required"],
+        pdf_file="templates/04_green_card/I-693_Medical-Examination.pdf",
+    ),
+    TemplateItem(
+        id="uscis-i90",
+        code="Form I-90",
+        title="Application to Replace Permanent Resident Card",
+        category="Green Card",
+        pages=12,
+        estimated_fields=110,
+        description="Application to renew or replace an expiring or lost Permanent Resident Card (Green Card).",
+        required_sources=["Current Green Card Info", "Address History", "Biographic Data", "Replacement Reason"],
+        is_demo_ready=False,
+        tags=["USCIS Official", "Green Card Renewal", "Replacement"],
+        pdf_file="templates/04_green_card/I-90_Green-Card-Renewal.pdf",
+    ),
+
+    # ── Travel ──
+    TemplateItem(
+        id="uscis-i131",
+        code="Form I-131",
+        title="Application for Travel Document",
+        category="Travel",
+        pages=9,
+        estimated_fields=130,
+        description="Application for a reentry permit, refugee travel document, TPS travel authorization, or advance parole.",
+        required_sources=["Passport & Visa Info", "Current Immigration Status", "Travel Purpose", "Address History"],
+        is_demo_ready=False,
+        tags=["USCIS Official", "Travel Authorization", "Advance Parole"],
+        pdf_file="templates/05_travel/I-131_Travel-Document.pdf",
+    ),
+    TemplateItem(
+        id="uscis-i131a",
+        code="Form I-131A",
+        title="Application for Carrier Documentation",
+        category="Travel",
+        pages=5,
+        estimated_fields=65,
+        description="Application for a transportation letter for LPRs stranded outside the US without a valid reentry permit or green card.",
+        required_sources=["Proof of Lawful Permanent Residence", "Passport Details", "Travel Circumstances"],
+        is_demo_ready=False,
+        tags=["USCIS Official", "Carrier Documentation", "Stranded LPR"],
+        pdf_file="templates/05_travel/I-131A_Carrier-Documentation.pdf",
+    ),
+
+    # ── Family & Relatives (from Infographic) ──
     TemplateItem(
         id="uscis-i130",
-        code="USCIS Form I-130",
+        code="Form I-130",
         title="Petition for Alien Relative",
-        category="Immigration",
+        category="Family",
         pages=12,
-        estimated_fields=230,
-        description="Petition to establish relationship for eligible relatives who wish to immigrate to the United States.",
-        required_sources=["Petitioner Proof of Citizenship", "Beneficiary Info", "Marriage / Relationship Evidence"],
+        estimated_fields=450,
+        description="Establishes a qualifying family relationship for immigration purposes (spouse, children, parents, or siblings).",
+        required_sources=["Petitioner Proof of Status", "Beneficiary Birth / Marriage Certificate", "Family Relationship Proof"],
         is_demo_ready=False,
-        tags=["USCIS Official", "Family Based", "AcroForm Certified"],
+        tags=["USCIS Official", "Family Petitions", "High Priority"],
+        pdf_file="templates/07_family/I-130_Petition-Alien-Relative.pdf",
     ),
     TemplateItem(
-        id="uscis-i9",
-        code="USCIS Form I-9",
-        title="Employment Eligibility Verification",
-        category="Immigration",
-        pages=4,
-        estimated_fields=85,
-        description="Mandatory verification used for all U.S. employers to verify identity and employment authorization of hired workers.",
-        required_sources=["Full Legal Name & DOB", "SSN / Alien Registration", "List A/B/C Identity Document Numbers"],
+        id="uscis-i864",
+        code="Form I-864",
+        title="Affidavit of Support Under Section 213A",
+        category="Family",
+        pages=12,
+        estimated_fields=219,
+        description="Shows a qualifying sponsor accepts financial responsibility for an immigrant intending to permanently reside in the US.",
+        required_sources=["Sponsor Tax Returns / W-2s", "Household Income Proof", "Proof of US Citizenship or LPR"],
         is_demo_ready=False,
-        tags=["Mandatory HR", "Compliance", "Digit Comb Boxes"],
+        tags=["USCIS Official", "Affidavit of Support", "Financial Sponsor"],
+        pdf_file="templates/07_family/I-864_Affidavit-of-Support.pdf",
+    ),
+
+    # ── Status Change & Condition Removal (from Infographic) ──
+    TemplateItem(
+        id="uscis-i539",
+        code="Form I-539",
+        title="Application to Extend/Change Nonimmigrant Status",
+        category="Status Extension",
+        pages=7,
+        estimated_fields=159,
+        description="Used to extend stay or change certain nonimmigrant classifications for dependents, visitors, students, and workers.",
+        required_sources=["Form I-94 Arrival Record", "Passport & Visa Copy", "Proof of Maintained Status"],
+        is_demo_ready=False,
+        tags=["USCIS Official", "Dependents & Students", "Status Extension"],
+        pdf_file="templates/08_status_change/I-539_Extend-Change-Status.pdf",
+    ),
+    TemplateItem(
+        id="uscis-i751",
+        code="Form I-751",
+        title="Petition to Remove Conditions on Residence",
+        category="Green Card",
+        pages=11,
+        estimated_fields=329,
+        description="Used to remove conditions from certain marriage-based green cards to transition to permanent 10-year residency.",
+        required_sources=["2-Year Conditional Green Card", "Joint Financial Records", "Cohabitation Evidence"],
+        is_demo_ready=False,
+        tags=["USCIS Official", "Marriage-Based", "Condition Removal"],
+        pdf_file="templates/08_status_change/I-751_Remove-Conditions-Residence.pdf",
+    ),
+    TemplateItem(
+        id="uscis-i829",
+        code="Form I-829",
+        title="Petition by Investor to Remove Conditions on Residence",
+        category="Green Card",
+        pages=10,
+        estimated_fields=359,
+        description="Used by eligible EB-5 investors to remove conditions on residence by proving investment and 10 job creations.",
+        required_sources=["Commercial Enterprise Proof", "Payroll / I-9 Records (10 Jobs)", "Audited Financials"],
+        is_demo_ready=False,
+        tags=["USCIS Official", "EB-5 Investor", "Job Creation Proof"],
+        pdf_file="templates/08_status_change/I-829_Remove-EB5-Conditions.pdf",
+    ),
+
+    # ── Citizenship & Naturalization (from Infographic) ──
+    TemplateItem(
+        id="uscis-n400",
+        code="Form N-400",
+        title="Application for Naturalization",
+        category="Citizenship",
+        pages=14,
+        estimated_fields=440,
+        description="Used by eligible lawful permanent residents (Green Card holders) to apply for United States citizenship.",
+        required_sources=["Green Card Copy", "Physical Presence Travel Log", "5-Year Residence & Employment History"],
+        is_demo_ready=False,
+        tags=["USCIS Official", "US Citizenship", "Naturalization Flagship"],
+        pdf_file="templates/09_citizenship/N-400_Application-for-Naturalization.pdf",
+    ),
+
+    # ── Consular & Labor Filings (from Infographic) ──
+    TemplateItem(
+        id="dos-ds160",
+        code="Form DS-160",
+        title="Online Nonimmigrant Visa Application",
+        category="Consular",
+        pages=8,
+        estimated_fields=160,
+        description="Used for temporary visa applications at U.S. consulates and embassies abroad (B-1/B-2, F-1, H-1B stamping).",
+        required_sources=["Valid Passport Information", "Travel Details & Contacts", "5-Year Work & Travel History"],
+        is_demo_ready=False,
+        tags=["State Department", "Consular Processing", "Electronic Intake"],
+        pdf_file=None,
+    ),
+    TemplateItem(
+        id="dos-ds260",
+        code="Form DS-260",
+        title="Online Immigrant Visa Application",
+        category="Consular",
+        pages=12,
+        estimated_fields=240,
+        description="Used for immigrant visa cases processed through the National Visa Center (NVC) and U.S. consulates.",
+        required_sources=["NVC Case Number", "Biographical Background", "Police & Military Records"],
+        is_demo_ready=False,
+        tags=["State Department", "NVC Immigrant Visa", "Consular Processing"],
+        pdf_file=None,
+    ),
+    TemplateItem(
+        id="dol-eta9089",
+        code="ETA Form 9089",
+        title="Application for Permanent Employment Certification (PERM)",
+        category="Employer Petitions",
+        pages=15,
+        estimated_fields=310,
+        description="Used in employer-sponsored EB-2 and EB-3 green-card cases to certify labor market testing before filing Form I-140.",
+        required_sources=["Prevailing Wage Determination", "Recruitment Audit Documentation", "Beneficiary Credentials"],
+        is_demo_ready=False,
+        tags=["DOL Official", "PERM Labor Certification", "Permanent Green Card"],
+        pdf_file=None,
     ),
 
     # ── IRS Tax Forms ──
     TemplateItem(
         id="irs-w9",
         code="IRS Form W-9",
-        title="Request for Taxpayer Identification Number & Certification",
+        title="Request for Taxpayer Identification Number",
         category="Tax",
         pages=6,
-        estimated_fields=42,
+        estimated_fields=23,
         description="Standard IRS certification providing correct Taxpayer Identification Number (TIN/SSN/EIN) for contractors and vendors.",
-        required_sources=["Legal Entity / Individual Name", "Tax Classification", "Address", "SSN or Employer Identification (EIN)"],
+        required_sources=["Legal Entity / Individual Name", "Tax Classification", "Address", "SSN or EIN"],
         is_demo_ready=False,
         tags=["IRS Official", "Tax ID Certification", "Contractor Onboarding"],
+        pdf_file="templates/10_tax/W-9_Request-TIN.pdf",
     ),
     TemplateItem(
         id="irs-w4",
         code="IRS Form W-4",
         title="Employee's Withholding Certificate",
         category="Tax",
-        pages=4,
-        estimated_fields=38,
+        pages=5,
+        estimated_fields=48,
         description="Federal tax withholding declaration completed by employees so employers withhold the correct federal income tax.",
         required_sources=["Marital Filing Status", "Dependents Count", "Other Income / Deductions", "SSN & Address"],
         is_demo_ready=False,
         tags=["IRS Official", "Payroll Withholding", "Annual Update"],
-    ),
-    TemplateItem(
-        id="irs-1099nec",
-        code="IRS Form 1099-NEC",
-        title="Nonemployee Compensation",
-        category="Tax",
-        pages=3,
-        estimated_fields=24,
-        description="Reports payments of $600 or more made to nonemployees, independent contractors, or freelancers during the tax year.",
-        required_sources=["Payer Name & TIN", "Recipient Name & Address", "Total Compensation Amount"],
-        is_demo_ready=False,
-        tags=["IRS Official", "Contractor Payouts", "Annual Tax"],
-    ),
-    TemplateItem(
-        id="irs-8821",
-        code="IRS Form 8821",
-        title="Tax Information Authorization",
-        category="Tax",
-        pages=2,
-        estimated_fields=36,
-        description="Authorizes any designated individual, corporation, or firm to inspect and receive confidential tax information from the IRS.",
-        required_sources=["Taxpayer Name & SSN/EIN", "Designee Appointee Info", "Tax Matters / Form Years Covered"],
-        is_demo_ready=False,
-        tags=["IRS Official", "Power of Info", "Authorization"],
-    ),
-
-    # ── Corporate & HR ──
-    TemplateItem(
-        id="hr-nda",
-        code="Standard NDA",
-        title="Mutual Non-Disclosure & Confidentiality Agreement",
-        category="Corporate & HR",
-        pages=4,
-        estimated_fields=28,
-        description="Bilateral confidentiality agreement protecting proprietary technology, financial records, trade secrets, and business discussions.",
-        required_sources=["Disclosing Party Entity", "Receiving Party Entity", "Governing State / Jurisdiction", "Term Duration"],
-        is_demo_ready=False,
-        tags=["Standard Legal", "Corporate", "Bilateral Agreement"],
-    ),
-    TemplateItem(
-        id="hr-direct-deposit",
-        code="Direct Deposit",
-        title="Employee Direct Deposit Authorization Form",
-        category="Corporate & HR",
-        pages=2,
-        estimated_fields=32,
-        description="Direct deposit authorization form for employee payroll processing and automated electronic bank account disbursement.",
-        required_sources=["Employee Name & Contact", "Bank Routing / ABA Number", "Checking / Savings Account Number"],
-        is_demo_ready=False,
-        tags=["HR Onboarding", "Banking Authorization", "Payroll"],
-    ),
-    TemplateItem(
-        id="hr-equipment-receipt",
-        code="Asset Receipt",
-        title="Company Equipment Receipt & Asset Security Agreement",
-        category="Corporate & HR",
-        pages=2,
-        estimated_fields=20,
-        description="Equipment custody and security policy acknowledgment for company laptops, peripherals, security badges, and access tokens.",
-        required_sources=["Employee Name & Department", "Device Serial Numbers & Models", "Issue Date & Signatory"],
-        is_demo_ready=False,
-        tags=["IT Asset Management", "HR Onboarding", "Security Agreement"],
+        pdf_file="templates/10_tax/W-4_Employee-Withholding.pdf",
     ),
 ]
 
@@ -905,6 +1127,16 @@ def _build_demo_source_summary(source_id: str) -> SourceSummary:
     )
 
 
+@app.post(
+    "/api/sources/sample",
+    response_model=SourceSummary,
+)
+async def load_sample_source() -> SourceSummary:
+    """Provisions a pre-loaded sample applicant source packet (passport, resume, notes)."""
+    source_id = new_id("s")
+    return _build_demo_source_summary(source_id)
+
+
 @app.get("/api/templates", response_model=TemplateListResponse)
 async def list_templates() -> TemplateListResponse:
     """Return pre-loaded template catalog."""
@@ -942,25 +1174,33 @@ async def load_demo() -> DemoLoadResponse:
     responses={404: {"model": ErrorResponse}, 400: {"model": ErrorResponse}},
 )
 async def load_template_form(template_id: str) -> FormSchema:
-    """Load a template directly into Form Studio."""
+    """Load a template PDF into Form Studio and return its schema."""
     template = next((t for t in TEMPLATES_CATALOG if t.id == template_id), None)
     if not template:
         raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found.")
 
     samples_dir = _find_samples_dir()
-    sample_pdf = samples_dir / "i129_sample_form.pdf"
-    if not sample_pdf.exists():
-        sample_pdf = samples_dir / "test_form.pdf"
+
+    # Resolve the PDF path
+    if template.pdf_file:
+        # pdf_file is relative to samples/ directory
+        sample_pdf = samples_dir / template.pdf_file
+    else:
+        # No PDF yet — fall back to demo I-129 for preview, or raise 400
+        sample_pdf = samples_dir / "i129_sample_form.pdf"
 
     if not sample_pdf.exists():
-        raise HTTPException(status_code=400, detail="Template sample PDF asset not found.")
+        raise HTTPException(
+            status_code=400,
+            detail=f"PDF for '{template.code}' is not yet available on this server."
+        )
 
     form_id = new_id("f")
     fdir = form_dir(form_id)
     dest_pdf = fdir / "original.pdf"
     shutil.copy2(str(sample_pdf), str(dest_pdf))
 
-    filename = f"{template.code.lower().replace(' ', '_')}.pdf"
+    filename = sample_pdf.name
     return _process_pdf_and_create_schema(dest_pdf, filename, form_id)
 
 
