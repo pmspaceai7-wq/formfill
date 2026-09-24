@@ -9,7 +9,6 @@ import {
   getProfile,
   loadDemoTemplate,
   loadTemplateById,
-  loadSampleSource,
   getSubmission,
   saveSubmission,
 } from "@/lib/api";
@@ -357,6 +356,14 @@ export default function Home() {
         setTimeout(() => {
           targetEl?.classList.remove("highlight-conflict-field");
         }, 2200);
+
+        // Auto-open conflict card when jumping to conflict
+        setTimeout(() => {
+          const conflictBtn = targetEl?.querySelector<HTMLElement>("[data-conflict-badge]");
+          if (conflictBtn) {
+            conflictBtn.click();
+          }
+        }, 120);
       } else if (attempts < 15) {
         setTimeout(() => doFocus(attempts + 1), 50);
       }
@@ -528,6 +535,14 @@ export default function Home() {
     fillJob.reset();
   }, [fillJob]);
 
+  const currentPageInfo = schema?.pages?.[page - 1];
+  const targetWidth = currentPageInfo
+    ? Math.round(currentPageInfo.width * (96 / 72) * zoom)
+    : renderedSize.w;
+  const targetHeight = currentPageInfo
+    ? Math.round(currentPageInfo.height * (96 / 72) * zoom)
+    : renderedSize.h;
+
   const sortedFields = schema
     ? schema.fields
         .filter((f) => f.page === page)
@@ -602,7 +617,7 @@ export default function Home() {
   }, [schema, user, values, fillJob.citations, fillJob.conflicts, fillJob.inferences, sourceId, activeSubmissionId]);
 
   return (
-    <div className="flex flex-col min-h-screen w-full bg-slate-100">
+    <div className={`flex flex-col ${state === "loaded" ? "h-screen overflow-hidden" : "min-h-screen"} w-full bg-slate-100`}>
       {/* Top SaaS Header */}
       <Navbar
         hasForm={state === "loaded"}
@@ -711,7 +726,7 @@ export default function Home() {
         </div>
       ) : (
         /* Form Studio Workspace with Smooth Entrance Animation */
-        <div className="flex flex-col flex-1 min-h-0 animate-fade-in-up">
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden animate-fade-in-up">
           <Toolbar
             filename={schema!.filename}
             page={page}
@@ -753,9 +768,9 @@ export default function Home() {
             isSaved={isSaved}
           />
 
-          <div className="flex flex-1 min-h-0 items-start">
-            {/* Left Source Documents Studio Panel — sticks while the page scrolls */}
-            <div className="flex-shrink-0 z-20 sticky top-[104px] self-start max-h-[calc(100vh-104px)]">
+          <div className="flex flex-1 min-h-0 overflow-hidden">
+            {/* Left Source Documents Studio Panel — independent stationary panel */}
+            <div className="flex-shrink-0 z-20 h-full">
               <SourcePanel
                 ref={sourcePanelRef}
                 onSourceReady={(id) => setSourceId(id)}
@@ -769,53 +784,40 @@ export default function Home() {
               />
             </div>
 
-            {/* Center Canvas PDF Viewer */}
+            {/* Center Canvas PDF Viewer — independent scrollable area */}
             <div
               ref={overlayRef}
-              className="flex-1 min-w-0 overflow-x-auto flex flex-col items-center p-6 bg-slate-200/80 gap-4"
+              className="flex-1 h-full min-w-0 overflow-y-auto overflow-x-auto flex flex-col items-center p-6 bg-slate-200/80 gap-4"
             >
               {/* Guidance banner when form is loaded with no source documents attached */}
               {!sourceId && factCount === 0 && (
-                <div className="w-full max-w-2xl px-4 py-3 bg-white/95 backdrop-blur border border-indigo-200/90 rounded-2xl shadow-xs flex items-center justify-between gap-4 animate-fade-in">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="text-base flex-shrink-0">💡</span>
-                    <p className="text-xs text-slate-700 leading-snug">
-                      <strong>How auto-fill works:</strong> Attach candidate documents on the left, or load sample applicant data to test auto-filling this form.
-                    </p>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      try {
-                        const sample = await loadSampleSource();
-                        setSourceId(sample.source_id);
-                        setSourceSummary(sample);
-                        if (sample.facts_total !== undefined) {
-                          setFactCount(sample.facts_total);
-                        }
-                      } catch (e) {
-                        alert(e instanceof Error ? e.message : "Failed to load sample sources");
-                      }
-                    }}
-                    className="flex-shrink-0 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer hover:scale-[1.02]"
-                  >
-                    <SparklesIcon size={13} />
-                    <span>Load Sample Applicant</span>
-                  </button>
+                <div className="w-full max-w-2xl px-4 py-3 bg-white/95 backdrop-blur border border-indigo-200/90 rounded-2xl shadow-xs flex items-center gap-2.5 animate-fade-in">
+                  <span className="text-base flex-shrink-0">💡</span>
+                  <p className="text-xs text-slate-700 leading-snug">
+                    <strong>How auto-fill works:</strong> Attach candidate documents or paste notes on the left panel to auto-fill this form with AI.
+                  </p>
                 </div>
               )}
 
-              <div className="relative inline-block shadow-2xl rounded-lg bg-white overflow-hidden border border-slate-300">
+              <div
+                className="relative inline-block shadow-2xl rounded-lg bg-white overflow-visible border border-slate-300"
+                style={{
+                  width: targetWidth > 0 ? `${targetWidth}px` : undefined,
+                  height: targetHeight > 0 ? `${targetHeight}px` : undefined,
+                }}
+              >
                 <PdfPage
                   formId={schema!.form_id}
                   page={page}
                   zoom={zoom}
+                  pageInfo={currentPageInfo}
                   onRendered={handleRendered}
                 />
-                {renderedSize.w > 0 && (
+                {targetWidth > 0 && targetHeight > 0 && (
                   <FieldOverlay
                     fields={sortedFields}
-                    renderedWidth={renderedSize.w}
-                    renderedHeight={renderedSize.h}
+                    renderedWidth={targetWidth}
+                    renderedHeight={targetHeight}
                     values={values}
                     aiValues={aiValues}
                     userEdited={userEdited}

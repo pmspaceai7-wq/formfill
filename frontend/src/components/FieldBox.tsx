@@ -23,6 +23,9 @@ interface Props {
     fieldLabel?: string;
     value?: string;
   }) => void;
+  isConflictOpen?: boolean;
+  onToggleConflict?: (open: boolean) => void;
+  onHoverChange?: (hovered: boolean) => void;
 }
 
 export function FieldBox({
@@ -37,11 +40,15 @@ export function FieldBox({
   inference,
   sourceId,
   onViewSource,
+  isConflictOpen,
+  onToggleConflict,
+  onHoverChange,
 }: Props) {
   const [showTip, setShowTip] = useState(false);
   const [showConflictCard, setShowConflictCard] = useState(false);
   const isReadOnly = field.read_only || field.type === "signature";
   const hasConflict = Boolean(conflict && (conflict.candidates?.length ?? 0) >= 2);
+  const isConflictCardVisible = isConflictOpen ?? showConflictCard;
 
   const hideTimer = useState<ReturnType<typeof setTimeout> | null>(null);
 
@@ -51,6 +58,7 @@ export function FieldBox({
       hideTimer[1](null);
     }
     setShowTip(true);
+    onHoverChange?.(true);
   };
 
   const handleMouseLeave = () => {
@@ -58,6 +66,7 @@ export function FieldBox({
       setShowTip(false);
     }, 250);
     hideTimer[1](t);
+    onHoverChange?.(false);
   };
 
   // Visual state: conflict = amber border, user-edited = green, ai-filled = blue, empty = dashed outline
@@ -82,7 +91,9 @@ export function FieldBox({
   const shared: React.CSSProperties = {
     display: "block",
     width: "100%",
+    maxWidth: "100%",
     height: "100%",
+    maxHeight: "100%",
     background: bg,
     border: "none",
     borderLeft,
@@ -96,7 +107,7 @@ export function FieldBox({
     pointerEvents: "auto",
   };
 
-  const tip = showTip && !showConflictCard ? (
+  const tip = showTip && !isConflictCardVisible ? (
     aiSource || Boolean(citation) || Boolean(inference) ? (
       <CitationTooltip
         citation={citation}
@@ -139,23 +150,41 @@ export function FieldBox({
   ) : null;
 
   const conflictBadge = hasConflict && (
-    <div
+    <button
+      type="button"
+      data-conflict-badge="true"
+      onMouseEnter={(e) => {
+        e.stopPropagation();
+        setShowTip(false);
+      }}
+      onMouseDown={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+      }}
       onClick={(e) => {
         e.stopPropagation();
-        setShowConflictCard(!showConflictCard);
+        e.preventDefault();
+        setShowTip(false);
+        if (onToggleConflict) {
+          onToggleConflict(!isConflictCardVisible);
+        } else {
+          setShowConflictCard((prev) => !prev);
+        }
       }}
-      title={`Data conflict: ${conflict!.candidates.length} candidate sources`}
+      title={`Data conflict: ${conflict!.candidates.length} candidate sources. Click to resolve.`}
       style={{
         position: "absolute",
         top: -6,
         right: -6,
-        zIndex: 50,
+        zIndex: 10005,
         cursor: "pointer",
       }}
-      className="w-4 h-4 rounded-full bg-amber-500 text-slate-950 font-bold text-[9px] flex items-center justify-center shadow-md animate-bounce hover:scale-125 transition-transform"
+      className="w-4 h-4 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-950 flex items-center justify-center shadow-md ring-1.5 ring-white hover:scale-110 active:scale-95 transition-all select-none cursor-pointer before:absolute before:-inset-2.5 before:content-['']"
     >
-      !
-    </div>
+      <svg className="w-2.5 h-2.5 text-slate-950 fill-current" viewBox="0 0 20 20">
+        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+      </svg>
+    </button>
   );
 
   const wrap = (child: React.ReactNode) => (
@@ -166,13 +195,19 @@ export function FieldBox({
     >
       {tip}
       {conflictBadge}
-      {showConflictCard && conflict && (
+      {isConflictCardVisible && conflict && (
         <ConflictResolverCard
           conflict={conflict}
           onSelectCandidate={(selectedVal) => {
             onChange(selectedVal);
           }}
-          onClose={() => setShowConflictCard(false)}
+          onClose={() => {
+            if (onToggleConflict) {
+              onToggleConflict(false);
+            } else {
+              setShowConflictCard(false);
+            }
+          }}
         />
       )}
       {child}
@@ -187,7 +222,17 @@ export function FieldBox({
         const chars = value.split("");
         const cols = field.max_len;
         return wrap(
-          <div data-field={field.field_id} style={{ display: "flex", width: "100%", height: "100%" }}>
+          <div
+            data-field={field.field_id}
+            style={{
+              display: "flex",
+              width: "100%",
+              maxWidth: "100%",
+              height: "100%",
+              overflow: "hidden",
+              boxSizing: "border-box",
+            }}
+          >
             {Array.from({ length: cols }).map((_, i) => (
               <input
                 key={i}
@@ -214,10 +259,21 @@ export function FieldBox({
                   }
                 }}
                 style={{
-                  flex: 1, height: "100%", background: bg,
-                  border: "none", borderRight: i < cols - 1 ? "1px solid rgba(100,150,200,0.4)" : "none",
-                  outline: "none", textAlign: "center", fontSize: 11, color: "#000",
-                  fontFamily: "Arial, sans-serif", padding: 0,
+                  flex: "1 1 0px",
+                  minWidth: 0,
+                  width: 0,
+                  height: "100%",
+                  background: bg,
+                  border: "none",
+                  borderRight: i < cols - 1 ? "1px solid rgba(100,150,200,0.4)" : "none",
+                  outline: "none",
+                  textAlign: "center",
+                  fontSize: 11,
+                  color: "#000",
+                  fontFamily: "Arial, sans-serif",
+                  padding: 0,
+                  margin: 0,
+                  boxSizing: "border-box",
                 }}
               />
             ))}

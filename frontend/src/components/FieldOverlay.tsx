@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { FieldCitation, FieldConflict, FieldInference, FormField } from "@/lib/types";
 import { FieldBox } from "./FieldBox";
 
@@ -38,8 +39,21 @@ export function FieldOverlay({
   sourceId,
   onViewSource,
 }: Props) {
+  const [activeConflictFieldId, setActiveConflictFieldId] = useState<string | null>(null);
+  const [hoveredFieldId, setHoveredFieldId] = useState<string | null>(null);
+
   return (
-    <div style={{ position: "absolute", top: 0, left: 0, width: renderedWidth, height: renderedHeight, zIndex: 10 }}>
+    <div
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: renderedWidth,
+        height: renderedHeight,
+        zIndex: 10,
+        pointerEvents: "none",
+      }}
+    >
       {fields.map((field, idx) => {
         const [x0, y0, x1, y1] = field.bbox;
         const left   = x0 * renderedWidth;
@@ -47,12 +61,29 @@ export function FieldOverlay({
         const width  = (x1 - x0) * renderedWidth;
         const height = (y1 - y0) * renderedHeight;
 
+        const isConflictOpen = activeConflictFieldId === field.field_id;
+        const isHovered = hoveredFieldId === field.field_id;
+        // Elevate z-index of the active conflict field to 99999 so that no subsequent
+        // sibling field in the DOM can ever paint on top of the conflict card.
+        const zIndex = isConflictOpen ? 99999 : isHovered ? 5000 : 11;
+
         return (
           <div
             key={field.field_id}
             data-field={field.field_id}
             className="field-box-wrapper transition-all duration-300"
-            style={{ position: "absolute", left, top, width, height, zIndex: 11 }}
+            style={{
+              position: "absolute",
+              left,
+              top,
+              width,
+              height,
+              maxWidth: Math.max(0, renderedWidth - left),
+              maxHeight: Math.max(0, renderedHeight - top),
+              boxSizing: "border-box",
+              pointerEvents: "auto",
+              zIndex,
+            }}
           >
             <FieldBox
               field={field}
@@ -63,6 +94,9 @@ export function FieldOverlay({
               userEdited={userEdited.has(field.field_id)}
               citation={citations[field.field_id]}
               conflict={conflicts[field.field_id]}
+              isConflictOpen={isConflictOpen}
+              onToggleConflict={(open) => setActiveConflictFieldId(open ? field.field_id : null)}
+              onHoverChange={(hovered) => setHoveredFieldId(hovered ? field.field_id : null)}
               inference={inferences[field.field_id]}
               sourceId={sourceId}
               onViewSource={onViewSource}

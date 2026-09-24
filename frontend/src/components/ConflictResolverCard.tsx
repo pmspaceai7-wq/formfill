@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import type { CandidateValue, FieldConflict } from "@/lib/types";
 
 interface Props {
@@ -15,43 +15,80 @@ export function ConflictResolverCard({
   onClose,
 }: Props) {
   const [selectedVal, setSelectedVal] = useState<string | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [placeBelow, setPlaceBelow] = useState(false);
+  const [alignRight, setAlignRight] = useState(false);
+
+  useEffect(() => {
+    if (cardRef.current) {
+      const rect = cardRef.current.getBoundingClientRect();
+      if (rect.top < 160) {
+        setPlaceBelow(true);
+      }
+      if (rect.right > window.innerWidth - 20) {
+        setAlignRight(true);
+      }
+    }
+  }, []);
+
+  // Close on outside click or Escape key
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (cardRef.current && !cardRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
 
   const handlePick = (cand: CandidateValue) => {
     setSelectedVal(cand.value);
     onSelectCandidate(cand.value);
     setTimeout(() => {
       onClose();
-    }, 450);
+    }, 400);
   };
 
   return (
     <div
+      ref={cardRef}
       style={{
         position: "absolute",
-        bottom: "calc(100% + 8px)",
-        left: 0,
-        zIndex: 10000,
+        ...(placeBelow ? { top: "calc(100% + 8px)" } : { bottom: "calc(100% + 8px)" }),
+        ...(alignRight ? { right: 0 } : { left: 0 }),
+        zIndex: 10010,
         width: 380,
         maxWidth: "92vw",
         pointerEvents: "auto",
       }}
       onClick={(e) => e.stopPropagation()}
-      className="bg-slate-950 text-slate-100 rounded-2xl p-4 shadow-2xl border-2 border-amber-500/80 backdrop-blur-xl text-xs animate-in fade-in zoom-in-95 duration-200 ring-4 ring-amber-500/15"
+      className="bg-[#0f172a] text-slate-100 rounded-2xl p-4 shadow-2xl border border-slate-700/80 ring-4 ring-amber-500/15 text-xs animate-in fade-in zoom-in-95 duration-150"
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-800">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-xs flex-shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center font-bold text-xs flex-shrink-0 shadow-2xs">
             ⚠️
           </div>
           <div>
             <div className="text-xs font-bold text-white flex items-center gap-1.5">
               <span>Data Conflict Detected</span>
-              <span className="text-[10px] bg-amber-950 text-amber-300 px-1.5 py-0.5 rounded border border-amber-800/60 font-mono font-normal">
+              <span className="text-[10px] bg-amber-950/90 text-amber-300 px-2 py-0.5 rounded-full border border-amber-800/80 font-semibold font-mono">
                 {(conflict.candidates ?? []).length} Sources
               </span>
             </div>
-            <div className="text-[11px] text-slate-400 truncate max-w-[240px]">
+            <div className="text-[11px] text-slate-400 font-medium truncate max-w-[240px]">
               {conflict.field_label || conflict.fact_key}
             </div>
           </div>
@@ -59,8 +96,17 @@ export function ConflictResolverCard({
 
         <button
           type="button"
-          onClick={onClose}
-          className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 text-xs font-bold cursor-pointer transition-colors"
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onClose();
+          }}
+          className="text-slate-400 hover:text-white hover:bg-slate-800 w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold cursor-pointer transition-colors"
+          title="Close conflict resolver"
         >
           ✕
         </button>
@@ -79,36 +125,37 @@ export function ConflictResolverCard({
           return (
             <div
               key={idx}
-              className={`p-3 rounded-xl border transition-all duration-200 ${
+              onClick={() => handlePick(cand)}
+              className={`p-3 rounded-xl border transition-all duration-200 cursor-pointer ${
                 isJustSelected
-                  ? "bg-emerald-950/80 border-emerald-500 shadow-md ring-2 ring-emerald-500/20"
+                  ? "bg-emerald-950/80 border-emerald-400 shadow-md ring-2 ring-emerald-500/30"
                   : isCurrent
-                  ? "bg-slate-900 border-blue-500/60 ring-1 ring-blue-500/20"
-                  : "bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900"
+                  ? "bg-slate-800/90 border-blue-500/70 ring-1 ring-blue-500/30 shadow-md"
+                  : "bg-slate-800/60 border-slate-700/80 hover:bg-slate-800 hover:border-slate-600"
               }`}
             >
               {/* Top info line */}
               <div className="flex items-center justify-between gap-2 mb-1.5">
-                <span className="font-mono text-[10px] text-emerald-400 font-semibold bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-900/60 flex items-center gap-1 truncate max-w-[200px]">
+                <span className="font-mono text-[10px] text-emerald-300 font-semibold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800/70 flex items-center gap-1 truncate max-w-[220px] shadow-2xs">
                   📄 {cand.source_file}
                   {cand.line_number ? ` (L${cand.line_number})` : ""}
                 </span>
 
                 {isCurrent && (
-                  <span className="text-[9px] bg-blue-900/80 text-blue-200 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                  <span className="text-[9px] bg-blue-600 text-white border border-blue-400/30 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-2xs">
                     Current
                   </span>
                 )}
               </div>
 
               {/* Value Text */}
-              <div className="font-mono font-bold text-sm text-white mb-1 break-all">
+              <div className="font-mono font-bold text-sm text-white mb-1.5 break-all">
                 {cand.value}
               </div>
 
               {/* Snippet Context */}
               {cand.snippet && (
-                <div className="text-[10px] text-slate-400 italic bg-slate-950/60 p-1.5 rounded mb-2 font-sans border-l-2 border-slate-700">
+                <div className="text-[11px] text-slate-300 italic bg-slate-950/80 p-2 rounded-lg mb-2.5 font-sans border-l-2 border-blue-400 border border-slate-800 leading-normal">
                   &ldquo;{cand.snippet}&rdquo;
                 </div>
               )}
@@ -116,19 +163,27 @@ export function ConflictResolverCard({
               {/* Action Button */}
               <button
                 type="button"
-                onClick={() => handlePick(cand)}
-                className={`w-full py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  handlePick(cand);
+                }}
+                className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs ${
                   isJustSelected
                     ? "bg-emerald-600 text-white"
                     : isCurrent
                     ? "bg-blue-600 hover:bg-blue-500 text-white"
-                    : "bg-slate-800 hover:bg-blue-600 text-slate-200 hover:text-white border border-slate-700 hover:border-blue-500"
+                    : "bg-slate-700 hover:bg-blue-600 text-slate-100 hover:text-white border border-slate-600 hover:border-blue-500"
                 }`}
               >
                 {isJustSelected ? (
-                  <>
-                    <span>✓ Applied Value</span>
-                  </>
+                  <span>✓ Applied Value</span>
+                ) : isCurrent ? (
+                  <span>✓ Current Value (Keep)</span>
                 ) : (
                   <>
                     <span>Use This Value</span>
@@ -142,7 +197,7 @@ export function ConflictResolverCard({
       </div>
 
       <div className="pt-2.5 mt-2 border-t border-slate-800 flex items-center justify-between text-[10px] text-slate-400">
-        <span>Clicking immediately updates the PDF canvas.</span>
+        <span>⚡ Canvas updates immediately</span>
         <button
           type="button"
           onClick={onClose}

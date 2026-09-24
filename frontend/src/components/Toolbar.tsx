@@ -93,7 +93,7 @@ export function Toolbar({
   const pct = fillTotal > 0 ? Math.round((fillDone / fillTotal) * 100) : 0;
 
   return (
-    <div className="flex flex-col bg-white border-b border-slate-200 shadow-sm z-30 sticky top-[61px]">
+    <div className="flex flex-col bg-white border-b border-slate-200 shadow-sm z-30 flex-shrink-0">
       {/* Primary Action Bar */}
       <div className="flex items-center justify-between px-4 py-2.5 gap-3 flex-wrap xl:flex-nowrap">
         {/* Document Info Pill & Page Stepper */}
@@ -141,10 +141,13 @@ export function Toolbar({
           {conflictCount > 0 && (
             <button
               onClick={onNextConflict}
-              className="px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs animate-pulse cursor-pointer"
+              className="px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
               title="Review source data conflicts"
             >
-              <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+              </span>
               <span>⚠️ {conflictCount} Conflict{conflictCount > 1 ? "s" : ""}</span>
             </button>
           )}

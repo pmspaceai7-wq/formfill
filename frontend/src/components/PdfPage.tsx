@@ -2,45 +2,62 @@
 
 import { useEffect, useRef, useState } from "react";
 import { pageImageUrl } from "@/lib/api";
+import type { PageInfo } from "@/lib/types";
 
 interface Props {
   formId: string;
   page: number;
   zoom: number;
-  onRendered: (width: number, height: number) => void;
+  pageInfo?: PageInfo;
+  onRendered?: (width: number, height: number) => void;
 }
 
-// The backend renders pages at 150 DPI (roughly double a typical CSS pixel
-// grid), so painting the image at its natural pixel size makes every page
-// look zoomed in far past "100%". This brings a 150-DPI render down to a
-// sane on-screen baseline before the user's zoom is applied on top.
+// PDF points are 72 DPI; screen pixels in CSS standard are 96 DPI.
+// Backend renders pages at 150 DPI.
 const RENDER_DPI = 150;
 const SCREEN_DPI = 96;
-const BASE_SCALE = SCREEN_DPI / RENDER_DPI;
+const BASE_SCALE = SCREEN_DPI / RENDER_DPI; // 96 / 150 = 0.64
+const PT_TO_PX = SCREEN_DPI / 72;           // 96 / 72 = 1.3333333333333333
 
-export function PdfPage({ formId, page, zoom, onRendered }: Props) {
+export function PdfPage({ formId, page, zoom, pageInfo, onRendered }: Props) {
   const imgRef = useRef<HTMLImageElement>(null);
   const onRenderedRef = useRef(onRendered);
   useEffect(() => { onRenderedRef.current = onRendered; });
 
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
 
-  // Reset the known natural size whenever the page image itself changes, so a
-  // stale size from the previous page can't briefly flash before onLoad fires.
+  // If pageInfo is available from the schema, dimensions are 100% deterministic
+  // without needing to wait for the image to download or onLoad to trigger.
+  const displayWidth = pageInfo
+    ? Math.round(pageInfo.width * PT_TO_PX * zoom)
+    : natural
+    ? Math.round(natural.w * BASE_SCALE * zoom)
+    : undefined;
+
+  const displayHeight = pageInfo
+    ? Math.round(pageInfo.height * PT_TO_PX * zoom)
+    : natural
+    ? Math.round(natural.h * BASE_SCALE * zoom)
+    : undefined;
+
+  // Reset natural state on page change
   useEffect(() => {
     setNatural(null);
   }, [formId, page]);
 
+  // Synchronously or reactively report rendered dimensions
   useEffect(() => {
-    if (!natural) return;
-    onRenderedRef.current(
-      Math.round(natural.w * BASE_SCALE * zoom),
-      Math.round(natural.h * BASE_SCALE * zoom)
-    );
-  }, [natural, zoom]);
+    if (displayWidth && displayHeight) {
+      onRenderedRef.current?.(displayWidth, displayHeight);
+    }
+  }, [displayWidth, displayHeight]);
 
-  const displayWidth = natural ? Math.round(natural.w * BASE_SCALE * zoom) : undefined;
-  const displayHeight = natural ? Math.round(natural.h * BASE_SCALE * zoom) : undefined;
+  // Check if image is already cached/complete on mount or page change
+  useEffect(() => {
+    if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
+      setNatural({ w: imgRef.current.naturalWidth, h: imgRef.current.naturalHeight });
+    }
+  }, [formId, page]);
 
   return (
     <img
@@ -50,10 +67,13 @@ export function PdfPage({ formId, page, zoom, onRendered }: Props) {
       draggable={false}
       width={displayWidth}
       height={displayHeight}
+      className="rounded-lg max-w-none max-h-none select-none"
       style={{
         display: "block",
         width: displayWidth ? `${displayWidth}px` : undefined,
         height: displayHeight ? `${displayHeight}px` : undefined,
+        maxWidth: "none",
+        maxHeight: "none",
         userSelect: "none",
       }}
       onLoad={(e) => {

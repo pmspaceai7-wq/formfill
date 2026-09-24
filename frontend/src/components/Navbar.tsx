@@ -197,7 +197,7 @@ export function Navbar({
 
   return (
     <>
-      <header className="relative w-full bg-slate-950/90 border-b border-slate-800/80 sticky top-0 z-50 px-4 sm:px-8 lg:px-12 py-2.5 flex items-center justify-between transition-all shadow-lg shadow-black/40 backdrop-blur-xl">
+      <header className="relative w-full bg-slate-950/90 border-b border-slate-800/80 sticky top-0 z-50 px-4 sm:px-8 lg:px-12 py-2.5 flex items-center justify-between transition-all shadow-lg shadow-black/40 backdrop-blur-xl flex-shrink-0">
         {/* Subtle Ambient Top Glow Line */}
         <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-blue-500/60 to-transparent pointer-events-none" />
 

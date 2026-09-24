@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useImperativeHandle, useRef, useState } from "react";
-import { uploadSources, loadSampleSource } from "@/lib/api";
+import { uploadSources } from "@/lib/api";
 import type { SourceSummary } from "@/lib/types";
 import {
   UploadIcon,
@@ -70,18 +70,77 @@ export const SourcePanel = React.forwardRef<SourcePanelHandle, Props>(
     const accepted = arr.filter((f) =>
       ACCEPTED.some((ext) => f.name.toLowerCase().endsWith(ext))
     );
-    stagedFiles.current = [...stagedFiles.current, ...accepted];
+    if (arr.length > 0 && accepted.length === 0) {
+      alert("No supported documents found. Supported formats: PDF, DOCX, TXT, CSV, MD.");
+      return;
+    }
+    const existingKeys = new Set(stagedFiles.current.map((f) => `${f.name}:${f.size}`));
+    const newFiles = accepted.filter((f) => !existingKeys.has(`${f.name}:${f.size}`));
+    if (newFiles.length === 0) return;
+
+    stagedFiles.current = [...stagedFiles.current, ...newFiles];
     setRows((prev) => [
       ...prev,
-      ...accepted.map((f) => ({ name: f.name, size: f.size })),
+      ...newFiles.map((f) => ({ name: f.name, size: f.size })),
     ]);
   }, []);
 
   const onDrop = useCallback(
-    (e: React.DragEvent) => {
+    async (e: React.DragEvent) => {
       e.preventDefault();
       setIsDragging(false);
-      addFiles(e.dataTransfer.files);
+
+      const items = e.dataTransfer.items;
+      if (items && items.length > 0) {
+        const files: File[] = [];
+        const readEntry = async (entry: FileSystemEntry) => {
+          if (entry.isFile) {
+            const fileEntry = entry as FileSystemFileEntry;
+            await new Promise<void>((resolve) => {
+              fileEntry.file(
+                (f) => {
+                  files.push(f);
+                  resolve();
+                },
+                () => resolve()
+              );
+            });
+          } else if (entry.isDirectory) {
+            const dirEntry = entry as FileSystemDirectoryEntry;
+            const dirReader = dirEntry.createReader();
+            const entries = await new Promise<FileSystemEntry[]>((resolve) => {
+              dirReader.readEntries(
+                (results) => resolve(results || []),
+                () => resolve([])
+              );
+            });
+            for (const sub of entries) {
+              await readEntry(sub);
+            }
+          }
+        };
+
+        const promises: Promise<void>[] = [];
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+          if (entry) {
+            promises.push(readEntry(entry));
+          } else {
+            const f = item.getAsFile();
+            if (f) files.push(f);
+          }
+        }
+        await Promise.all(promises);
+        if (files.length > 0) {
+          addFiles(files);
+          return;
+        }
+      }
+
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        addFiles(e.dataTransfer.files);
+      }
     },
     [addFiles]
   );
@@ -110,38 +169,11 @@ export const SourcePanel = React.forwardRef<SourcePanelHandle, Props>(
         }))
       );
       onSourceReady(summary.source_id);
+      onSourceSummaryReady?.(summary);
     } catch (e) {
       alert(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const [loadingSample, setLoadingSample] = useState(false);
-
-  const handleLoadSample = async () => {
-    setLoadingSample(true);
-    try {
-      const summary = await loadSampleSource();
-      setSourceId(summary.source_id);
-      setWarnings(summary.warnings || []);
-      setLearned({
-        added: summary.facts_learned ?? 0,
-        total: summary.facts_total ?? 0,
-      });
-      setRows(
-        summary.items.map((it) => ({
-          name: it.name,
-          size: it.chars,
-          chars: it.chars,
-        }))
-      );
-      onSourceReady(summary.source_id);
-      onSourceSummaryReady?.(summary);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed to load sample applicant packet");
-    } finally {
-      setLoadingSample(false);
     }
   };
 
@@ -166,8 +198,67 @@ export const SourcePanel = React.forwardRef<SourcePanelHandle, Props>(
     },
   }));
 
+  const renderAction = () => {
+    if (!sourceId) {
+      const hasContent = rows.length > 0 || Boolean(pastedText.trim());
+      return (
+        <button
+          onClick={submit}
+          disabled={loading || !hasContent}
+          className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-sm ${
+            loading || !hasContent
+              ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200/60"
+              : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20 hover:shadow-md cursor-pointer hover:scale-[1.01]"
+          }`}
+        >
+          {loading ? (
+            <>
+              <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              <span>Extracting Text & Entities…</span>
+            </>
+          ) : (
+            <>
+              <SparklesIcon size={14} />
+              <span>⚡ Extract Text & Link Source</span>
+            </>
+          )}
+        </button>
+      );
+    }
+
+    return (
+      <div className="space-y-2">
+        <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold space-y-1 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <CheckCircleIcon size={14} className="text-emerald-600" />
+              <span>Source Data Ready</span>
+            </div>
+            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
+              Active
+            </span>
+          </div>
+          {learned && (
+            <p className="text-[10px] font-medium text-emerald-700/90 leading-relaxed">
+              Learned {learned.added} new detail{learned.added === 1 ? "" : "s"} ·{" "}
+              {learned.total} remembered and reused on every form.
+            </p>
+          )}
+        </div>
+
+        <button
+          onClick={reset}
+          className="w-full py-2 px-3 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+        >
+          <RefreshCwIcon size={12} />
+          <span>Change Source Documents</span>
+        </button>
+      </div>
+    );
+  };
+
   return (
-    <div className="w-80 h-full max-h-[calc(100vh-104px)] bg-white border-r border-slate-200 flex flex-col p-4 gap-4 text-xs select-none shadow-sm overflow-y-auto">
+    <div className="w-80 h-full bg-white border-r border-slate-200 flex flex-col p-4 gap-4 text-xs select-none shadow-sm overflow-y-auto">
       {/* Title Header */}
       <div className="flex items-center justify-between pb-3 border-b border-slate-100">
         <div className="flex items-center gap-2">
@@ -246,52 +337,38 @@ export const SourcePanel = React.forwardRef<SourcePanelHandle, Props>(
             <span>Select Folder of Documents</span>
           </button>
 
-          {/* Quick 1-Click Sample Test Packet */}
-          {!sourceId && rows.length === 0 && (
-            <div className="pt-1">
-              <button
-                onClick={handleLoadSample}
-                disabled={loadingSample}
-                className="w-full py-2 px-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs group"
-              >
-                {loadingSample ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-                    <span>Loading Sample Applicant…</span>
-                  </>
-                ) : (
-                  <>
-                    <SparklesIcon size={13} className="text-indigo-600 group-hover:rotate-12 transition-transform" />
-                    <span>⚡ Load Sample Applicant Data</span>
-                  </>
-                )}
-              </button>
-              <p className="text-[10px] text-slate-400 text-center mt-1">
-                Attach pre-calibrated documents to test auto-filling
-              </p>
-            </div>
-          )}
-
           <input
             ref={fileInputRef}
             type="file"
             multiple
             accept={ACCEPTED.join(",")}
             className="hidden"
-            onChange={(e) => e.target.files && addFiles(e.target.files)}
+            onChange={(e) => {
+              if (e.target.files && e.target.files.length > 0) {
+                addFiles(e.target.files);
+              }
+              e.target.value = "";
+            }}
           />
           <input
             ref={folderInputRef}
             type="file"
-            className="hidden"
-            // @ts-expect-error webkitdirectory not in standard TS types
+            multiple
+            // @ts-expect-error directory attribute is standard in non-TS DOM definitions
+            directory=""
             webkitdirectory=""
-            onChange={(e) => e.target.files && addFiles(e.target.files)}
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files && e.target.files.length > 0) {
+                addFiles(e.target.files);
+              }
+              e.target.value = "";
+            }}
           />
 
           {/* File Rows */}
           {rows.length > 0 && (
-            <div className="space-y-1.5 max-h-40 overflow-y-auto pt-1">
+            <div className="space-y-1.5 max-h-48 overflow-y-auto pt-1">
               {rows.map((r, i) => (
                 <div
                   key={i}
@@ -326,12 +403,15 @@ export const SourcePanel = React.forwardRef<SourcePanelHandle, Props>(
               ))}
             </div>
           )}
+
+          {/* Action Button: Extract Text directly after uploaded files */}
+          {renderAction()}
         </div>
       )}
 
       {/* Tab 2: Paste Raw Text */}
       {activeTab === "paste" && (
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           <div className="flex items-center justify-between text-[11px] text-slate-500">
             <span>Paste raw profile or bio:</span>
             <button
@@ -351,6 +431,9 @@ export const SourcePanel = React.forwardRef<SourcePanelHandle, Props>(
             placeholder="Name: John Smith&#10;Email: john@example.com&#10;Phone: (555) 123-4567&#10;City: Chicago..."
             className="w-full h-32 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500 font-mono resize-none leading-relaxed"
           />
+
+          {/* Action Button: Extract Text directly below textarea */}
+          {renderAction()}
         </div>
       )}
 
@@ -367,61 +450,6 @@ export const SourcePanel = React.forwardRef<SourcePanelHandle, Props>(
           ))}
         </div>
       )}
-
-      {/* Action Button: Extract Text or Reset */}
-      <div className="pt-2 mt-auto">
-        {!sourceId ? (
-          <button
-            onClick={submit}
-            disabled={loading || (rows.length === 0 && !pastedText.trim())}
-            className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-sm ${
-              loading || (rows.length === 0 && !pastedText.trim())
-                ? "bg-slate-100 text-slate-400 cursor-not-allowed"
-                : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20 hover:shadow-md cursor-pointer hover:scale-[1.01]"
-            }`}
-          >
-            {loading ? (
-              <>
-                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>Extracting Text & Entities…</span>
-              </>
-            ) : (
-              <>
-                <SparklesIcon size={14} />
-                <span>⚡ Extract Text & Link Source</span>
-              </>
-            )}
-          </button>
-        ) : (
-          <div className="space-y-2">
-            <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold space-y-1 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <CheckCircleIcon size={14} className="text-emerald-600" />
-                  <span>Source Data Ready</span>
-                </div>
-                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
-                  Active
-                </span>
-              </div>
-              {learned && (
-                <p className="text-[10px] font-medium text-emerald-700/90 leading-relaxed">
-                  Learned {learned.added} new detail{learned.added === 1 ? "" : "s"} ·{" "}
-                  {learned.total} remembered and reused on every form.
-                </p>
-              )}
-            </div>
-
-            <button
-              onClick={reset}
-              className="w-full py-2 px-3 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <RefreshCwIcon size={12} />
-              <span>Change Source Documents</span>
-            </button>
-          </div>
-        )}
-      </div>
     </div>
   );
 });
